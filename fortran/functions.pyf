@@ -1,0 +1,178 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module _fortran ! in
+
+  usercode '''
+  #include "fortran/functionsmodule.h"
+  '''
+  interface  ! in :_fortran
+
+      subroutine pitVolume(deplocal,pitid,pitnb,pitvol,notpitvol,m)
+
+          real(kind=8) dimension(m),intent(in) :: deplocal
+          integer dimension(m),intent(in),depend(m) :: pitid
+          integer intent(in) :: pitnb
+          real(kind=8) dimension(pitnb),intent(out),depend(pitnb) :: pitvol
+          real(kind=8) dimension(m),intent(out),depend(m) :: notpitvol
+          integer, optional,check(len(deplocal)>=m),depend(deplocal) :: m=len(deplocal)
+
+      end subroutine pitVolume
+
+      subroutine pitHeight(elev,fillz,pitid,pitvol,pitsedvol,newz,remain,m,nn,nb)
+
+          real(kind=8) dimension(m),intent(in) :: elev
+          real(kind=8) dimension(m),intent(in),depend(m) :: fillz
+          integer dimension(m),intent(in),depend(m) :: pitid
+          real(kind=8) dimension(nn),intent(in) :: pitvol
+          real(kind=8) dimension(nb),intent(in) :: pitsedvol
+          real(kind=8) dimension(m),intent(out),depend(m) :: newz
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: remain
+          integer, optional,check(len(elev)>=m),depend(elev) :: m=len(elev)
+          integer, optional,check(len(pitvol)>=nn),depend(pitvol) :: nn=len(pitvol)
+          integer, optional,check(len(pitsedvol)>=nb),depend(pitsedvol) :: nb=len(pitsedvol)
+
+      end subroutine pitHeight
+
+      subroutine spillPoints(nb,remainsed,pitdata,spillpts,n,m)
+
+          integer :: nb
+          real(kind=8) dimension(n),intent(in) :: remainsed
+          real(kind=8) dimension(m,5),intent(in) :: pitdata
+          real(kind=8) dimension(nb,3),intent(out),depend(nb) :: spillpts
+          integer, optional,check(len(remainsed)>=n),depend(remainsed) :: n=len(remainsed)
+          integer, optional,check(shape(pitdata,0)==m),depend(pitdata) :: m=shape(pitdata,0)
+
+      end subroutine spillPoints
+
+      subroutine fillDepression(dem,fillp,pitid,watershed,graph,nv,elev,depressionid,m,nb)
+
+          real(kind=8) dimension(m),intent(in) :: dem
+          real(kind=8) dimension(m),intent(in),depend(m) :: fillp
+          integer dimension(m),intent(in),depend(m) :: pitid
+          integer dimension(m),intent(in),depend(m) :: watershed
+          real(kind=8) dimension(nb),intent(in) :: graph
+          integer intent(in) :: nv
+          real(kind=8) dimension(m),intent(out),depend(m) :: elev
+          integer dimension(m),intent(out),depend(m) :: depressionid
+          integer, optional,check(len(dem)>=m),depend(dem) :: m=len(dem)
+          integer, optional,check(len(graph)>=nb),depend(graph) :: nb=len(graph)
+
+      end subroutine fillDepression
+
+      subroutine meanSlope(elev,bid,gbounds,ngbnb,ngbid,elght,bslp,nb,b)
+
+          real(kind=8) dimension(nb),intent(in) :: elev
+          integer dimension(b),intent(in) :: bid
+          integer dimension(nb),intent(in),depend(nb) :: gbounds
+          integer dimension(nb),intent(in),depend(nb) :: ngbnb
+          integer dimension(nb,12),intent(in),depend(nb) :: ngbid
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: elght
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: bslp
+          integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
+          integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
+
+      end subroutine meanSlope
+
+      subroutine flatBounds(elev,bid,gbounds,ngbnb,ngbid,be,nb,b)
+
+          real(kind=8) dimension(nb),intent(in) :: elev
+          integer dimension(b),intent(in) :: bid
+          integer dimension(nb),intent(in),depend(nb) :: gbounds
+          integer dimension(nb),intent(in),depend(nb) :: ngbnb
+          integer dimension(nb,12),intent(in),depend(nb) :: ngbid
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: be
+          integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
+          integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
+
+      end subroutine flatBounds
+
+      subroutine slpBounds(elev,bslp,bid,gbounds,ngbnb,ngbid,elght,be,nb,b)
+
+          real(kind=8) dimension(nb),intent(in) :: elev
+          real(kind=8) dimension(nb),intent(in) :: bslp
+          integer dimension(b),intent(in) :: bid
+          integer dimension(nb),intent(in),depend(nb) :: gbounds
+          integer dimension(nb),intent(in),depend(nb) :: ngbnb
+          integer dimension(nb,12),intent(in),depend(nb) :: ngbid
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: elght
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: be
+          integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
+          integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
+
+      end subroutine slpBounds
+
+      subroutine setHillslopeCoeff(kd,area,ngbnb,lgth,vlgth,dcoeff,nb)
+
+          real(kind=8) intent(in) :: kd
+          real(kind=8) dimension(nb),intent(in) :: area
+          integer dimension(nb),intent(in),depend(nb) :: ngbnb
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: lgth
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: vlgth
+          real(kind=8) dimension(nb,13),intent(out),depend(nb) :: dcoeff
+          integer, optional,check(len(area)>=nb),depend(area) :: nb=len(area)
+
+      end subroutine setHillslopeCoeff
+
+      subroutine initDiffCoeff(kds,kdm,area,ngbnb,lgth,vlgth,sc,sm,nb)
+
+          real(kind=8) intent(in) :: kds
+          real(kind=8) intent(in) :: kdm
+          real(kind=8) dimension(nb),intent(in) :: area
+          integer dimension(nb),intent(in),depend(nb) :: ngbnb
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: lgth
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: vlgth
+          real(kind=8) dimension(nb,12),intent(out),depend(nb) :: sc
+          real(kind=8) dimension(nb,12),intent(out),depend(nb) :: sm
+          integer, optional,check(len(area)>=nb),depend(area) :: nb=len(area)
+
+      end subroutine initDiffCoeff
+
+      subroutine setKdMat(inids,elev,perc,csdiff,ngbnb,ngbid,edgelgt,coeff,nb)
+
+          integer dimension(nb),intent(in) :: inids
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: perc
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: csdiff
+          integer dimension(nb),intent(in),depend(nb) :: ngbnb
+          integer dimension(nb,12),intent(in),depend(nb) :: ngbid
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: edgelgt
+          real(kind=8) dimension(nb,13),intent(out),depend(nb) :: coeff
+          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine setKdMat
+
+      subroutine SFDreceivers(inids,elev,ngbnb,ngbid,edgelgt,rcv,slope,dist,nb)
+
+          integer dimension(nb),intent(in) :: inids
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+          integer dimension(nb),intent(in),depend(nb) :: ngbnb
+          integer dimension(nb,12),intent(in),depend(nb) :: ngbid
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: edgelgt
+          integer dimension(nb),intent(out),depend(nb) :: rcv
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: slope
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: dist
+          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine SFDreceivers
+
+      subroutine defineTIN(coords,cells_nodes,cells_edges,edges_nodes,circumcenter,ngbnb,ngbid,edgelgt,vorodist,n,nb,m)
+
+          real(kind=8) dimension(nb,3),intent(in) :: coords
+          integer dimension(n,3),intent(in) :: cells_nodes
+          integer dimension(n,3),intent(in),depend(n) :: cells_edges
+          integer dimension(m,2),intent(in) :: edges_nodes
+          real(kind=8) dimension(n,3),intent(in),depend(n) :: circumcenter
+          integer dimension(nb),intent(out),depend(nb) :: ngbnb
+          integer dimension(nb,12),intent(out),depend(nb) :: ngbid
+          real(kind=8) dimension(nb,12),intent(out),depend(nb) :: edgelgt
+          real(kind=8) dimension(nb,12),intent(out),depend(nb) :: vorodist
+          integer, optional,check(shape(cells_nodes,0)==n),depend(cells_nodes) :: n=shape(cells_nodes,0)
+          integer, optional,check(shape(coords,0)==nb),depend(coords) :: nb=shape(coords,0)
+          integer, optional,check(shape(edges_nodes,0)==m),depend(edges_nodes) :: m=shape(edges_nodes,0)
+
+      end subroutine defineTIN
+
+  end interface
+
+end python module _fortran

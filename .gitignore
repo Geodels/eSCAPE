@@ -1,0 +1,9 @@
+.ipynb_checkpoints/
+build/
+.DS_Store
+*.pyc
+*.h5
+*.xmf
+*.xdmf
+*.so
+*.o
