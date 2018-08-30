@@ -28,6 +28,7 @@ import warnings;warnings.simplefilter('ignore')
 from gSCAPE._fortran import setHillslopeCoeff
 from gSCAPE._fortran import initDiffCoeff
 from gSCAPE._fortran import SFDreceivers
+from gSCAPE._fortran import MFDreceivers
 from gSCAPE._fortran import setKdMat
 
 MPIrank = PETSc.COMM_WORLD.Get_rank()
@@ -42,6 +43,13 @@ class SPMesh(object):
     Building the surface processes based on different neighbour conditions
     """
     def __init__(self, *args, **kwargs):
+
+        if self.flowDir == 'SFD':
+            self.mfd = 1
+        elif self.flowDir == 'MFD2':
+            self.mfd = 2
+        else:
+            self.mfd = 3
 
         # KSP solver parameters
         self.rtol = 1.0e-8
@@ -127,18 +135,30 @@ class SPMesh(object):
         t0 = clock()
         self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
         hArrayLocal = self.hLocal.getArray()
-
-        if self.flowDir == 'SFD':
+        if self.mfd == 1:
             self.rcvID, self.slpRcv, self.distRcv = SFDreceivers(self.inIDs, hArrayLocal, self.FVmesh_ngbNbs,
                                                                                 self.FVmesh_ngbID, self.FVmesh_edgeLgt)
             # Account for pit regions
-            self.pitID = np.where(self.slpRcv<=0)[0]
+            self.pitID = np.where(self.slpRcv<=0.)[0]
             self.rcvID[self.pitID] = self.pitID
             self.distRcv[self.pitID] = 0.
             # Account for marine regions
             self.seaID = np.where(hArrayLocal<self.sealevel)[0]
             self.rcvID[self.seaID] = self.seaID
             self.distRcv[self.seaID] = 0.
+        else:
+            self.rcvID, self.slpRcv, self.distRcv, self.wghtVal = MFDreceivers(self.mfd, self.inIDs, hArrayLocal, self.FVmesh_ngbNbs,
+                                                                                self.FVmesh_ngbID, self.FVmesh_edgeLgt)
+            # Account for pit regions
+            self.pitID = np.where(self.slpRcv[:,0]<=0.)[0]
+            self.rcvID[self.pitID,:] = np.tile(self.pitID,  (self.mfd,1)).T
+            self.distRcv[self.pitID,:] = 0.
+            self.wghtVal [self.pitID,:] = 0.
+            # Account for marine regions
+            self.seaID = np.where(hArrayLocal<self.sealevel)[0]
+            self.rcvID[self.seaID,:] = np.tile(self.seaID,  (self.mfd,1)).T
+            self.distRcv[self.seaID,:] = 0.
+            self.wghtVal [self.seaID,:] = 0.
         del hArrayLocal
 
     	if MPIrank == 0 and self.verbose:
@@ -154,22 +174,36 @@ class SPMesh(object):
         # Build drainage area matrix
         if self.rainFlag:
             WAMat = self._matrix_build()
-            data = -np.ones(self.npoints)
-            indptr = np.arange(0, self.npoints+1, dtype=PETSc.IntType)
-            nodes = indptr[:-1]
-            data[self.rcvID.astype(PETSc.IntType)==nodes] = 0.0
-            WAMat.assemblyBegin()
-            WAMat.setValuesLocalCSR(indptr, self.rcvID.astype(PETSc.IntType), data,
-                                                            PETSc.InsertMode.INSERT_VALUES)
-            WAMat.assemblyEnd()
-            WAMat += self.iMat
-            WAtrans = WAMat.transpose()
-            self.WAtrans = WAtrans.copy()
+            if self.mfd == 1:
+                data = -np.ones(self.npoints)
+                indptr = np.arange(0, self.npoints+1, dtype=PETSc.IntType)
+                nodes = indptr[:-1]
+                data[self.rcvID.astype(PETSc.IntType)==nodes] = 0.0
+                WAMat.assemblyBegin()
+                WAMat.setValuesLocalCSR(indptr, self.rcvID.astype(PETSc.IntType), data,
+                                                                PETSc.InsertMode.INSERT_VALUES)
+                WAMat.assemblyEnd()
+                WAMat += self.iMat
+            else:
+                WAMat = self.iMat.copy()
+                for k in range(0, self.mfd):
+                    tmpMat = self._matrix_build()
+                    data = -self.wghtVal[:,k].copy()
+                    indptr = np.arange(0, self.npoints+1, dtype=PETSc.IntType)
+                    nodes = indptr[:-1]
+                    data[self.rcvID[:,k].astype(PETSc.IntType)==nodes] = 0.0
+                    tmpMat.assemblyBegin()
+                    tmpMat.setValuesLocalCSR(indptr, self.rcvID[:,k].astype(PETSc.IntType), data,
+                                                                    PETSc.InsertMode.INSERT_VALUES)
+                    tmpMat.assemblyEnd()
+                    WAMat += tmpMat
+                    tmpMat.destroy()
 
             # Solve flow accumulation
+            WAtrans = WAMat.transpose()
+            self.WAtrans = WAtrans.copy()
             self.dm.localToGlobal(self.bL, self.bG, 1)
             self.dm.globalToLocal(self.bG, self.bL, 1)
-
             if self.tNow == self.tStart:
                 self._solve_KSP(False,WAtrans, self.bG, self.drainArea)
             else:
@@ -194,28 +228,50 @@ class SPMesh(object):
         self.hOldArray = self.hOldLocal.getArray()
 
         if self.rainFlag:
+
             # Define linear solver coefficients
+            WHMat = self._matrix_build()
             Kcoeff = self.drainAreaLocal.getArray()
             Kcoeff = -np.power(Kcoeff,self.m)*self.dt*self.Ke
-            Kcoeff = np.divide(Kcoeff, self.distRcv, out=np.zeros_like(Kcoeff), where=self.distRcv!=0)
 
-            # Erosion processes computation
-            WHMat = self._matrix_build()
-            data = Kcoeff
-            indptr = np.arange(0, self.npoints+1, dtype=PETSc.IntType)
-            nodes = indptr[:-1]
-            data[self.rcvID.astype(PETSc.IntType)==nodes] = 0.0
-            WHMat.assemblyBegin()
-            WHMat.setValuesLocalCSR(indptr, self.rcvID.astype(PETSc.IntType), data,
-                                                            PETSc.InsertMode.INSERT_VALUES)
-            WHMat.assemblyEnd()
-            Mdiag = self._matrix_build_diag(1.-Kcoeff)
-            WHMat += Mdiag
+            if self.mfd == 1:
+                # Erosion processes computation
+                Kcoeff = np.divide(Kcoeff, self.distRcv, out=np.zeros_like(Kcoeff), where=self.distRcv!=0)
+                data = Kcoeff
+                indptr = np.arange(0, self.npoints+1, dtype=PETSc.IntType)
+                nodes = indptr[:-1]
+                data[self.rcvID.astype(PETSc.IntType)==nodes] = 0.0
+                WHMat.assemblyBegin()
+                WHMat.setValuesLocalCSR(indptr, self.rcvID.astype(PETSc.IntType), data,
+                                                                PETSc.InsertMode.INSERT_VALUES)
+                WHMat.assemblyEnd()
+                Mdiag = self._matrix_build_diag(1.-Kcoeff)
+                WHMat += Mdiag
+                Mdiag.destroy()
+            else:
+                WHMat = self.iMat.copy()
+                for k in range(0, self.mfd):
+                    # Erosion processes computation
+                    data = np.divide(Kcoeff, self.distRcv[:,k], out=np.zeros_like(Kcoeff),
+                                                where=self.distRcv[:,k]!=0)
+                    tmpMat = self._matrix_build()
+                    data = np.multiply(data,self.wghtVal[:,k])
+                    indptr = np.arange(0, self.npoints+1, dtype=PETSc.IntType)
+                    nodes = indptr[:-1]
+                    data[self.rcvID[:,k].astype(PETSc.IntType)==nodes] = 0.0
+                    tmpMat.assemblyBegin()
+                    tmpMat.setValuesLocalCSR(indptr, self.rcvID[:,k].astype(PETSc.IntType), data,
+                                                                    PETSc.InsertMode.INSERT_VALUES)
+                    tmpMat.assemblyEnd()
+                    WHMat += tmpMat
+                    Mdiag = self._matrix_build_diag(data)
+                    WHMat -= Mdiag
+                    tmpMat.destroy()
+                    Mdiag.destroy()
 
             # Solve flow accumulation
             self._solve_KSP(True, WHMat, self.hOld, self.hGlobal)
             WHMat.destroy()
-            Mdiag.destroy()
 
         self.stepED.waxpy(-1.0,self.hOld,self.hGlobal)
         self.cumED.axpy(1.,self.stepED)

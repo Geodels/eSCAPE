@@ -9,6 +9,7 @@
 #define  initDiffCoeff   initdiffcoeff
 #define  setKdMat   setkdmat
 #define  SFDreceivers   sfdreceivers
+#define  MFDreceivers   mfdreceivers
 #define  defineTIN   definetin
 
 #define  pitVolume_   pitvolume_
@@ -22,6 +23,7 @@
 #define  initDiffCoeff_   initdiffcoeff_
 #define  setKdMat_   setkdmat_
 #define  SFDreceivers_   sfdreceivers_
+#define  MFDreceivers_   mfdreceivers_
 #define  defineTIN_   definetin_
 
 #define  _pitVolume   _pitvolume
@@ -35,6 +37,7 @@
 #define  _initDiffCoeff   _initdiffcoeff
 #define  _setKdMat  _setkdmat
 #define  _SFDreceivers  _sfdreceivers
+#define  _MFDreceivers  _mfdreceivers
 #define  _defineTIN  _definetin
 
 #define  _pitVolume_   _pitvolume_
@@ -48,4 +51,5 @@
 #define  _initDiffCoeff_   _initdiffcoeff_
 #define  _setKdMat_   _setkdmat_
 #define  _SFDreceivers_   _sfdreceivers_
+#define  _MFDreceivers_  _mfdreceivers_
 #define  _defineTIN_   _definetin_

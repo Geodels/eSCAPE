@@ -156,6 +156,22 @@ python module _fortran ! in
 
       end subroutine SFDreceivers
 
+      subroutine MFDreceivers(nrcv,inids,elev,ngbnb,ngbid,edgelgt,rcv,slope,dist,wgt,nb)
+
+          integer intent(in) :: nrcv
+          integer dimension(nb),intent(in) :: inids
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+          integer dimension(nb),intent(in),depend(nb) :: ngbnb
+          integer dimension(nb,12),intent(in),depend(nb) :: ngbid
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: edgelgt
+          integer dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: rcv
+          real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: slope
+          real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: dist
+          real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: wgt
+          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine MFDreceivers
+
       subroutine defineTIN(coords,cells_nodes,cells_edges,edges_nodes,circumcenter,ngbnb,ngbid,edgelgt,vorodist,n,nb,m)
 
           real(kind=8) dimension(nb,3),intent(in) :: coords

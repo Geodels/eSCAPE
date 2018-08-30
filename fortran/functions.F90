@@ -490,7 +490,7 @@ subroutine SFDreceivers( inIDs, elev, ngbNb, ngbID, edgeLgt, rcv, slope, dist, n
   real( kind=8 ), intent(out) :: dist(nb)
 
   integer :: k, n, p
-  real( kind=8 ) :: slp, slprcv
+  real( kind=8 ) :: slp
 
   rcv = -1
   slope = -1.e6
@@ -498,7 +498,6 @@ subroutine SFDreceivers( inIDs, elev, ngbNb, ngbID, edgeLgt, rcv, slope, dist, n
 
   do k = 1, nb
     if(inIDs(k)>0)then
-      slprcv = -1.e6
       do p = 1, ngbNb(k)
         n = ngbID(k,p)+1
         if(n>0 .and. edgeLgt(k,p)>0.)then
@@ -521,6 +520,98 @@ subroutine SFDreceivers( inIDs, elev, ngbNb, ngbID, edgeLgt, rcv, slope, dist, n
   return
 
 end subroutine SFDreceivers
+
+subroutine MFDreceivers( nRcv, inIDs, elev, ngbNb, ngbID, edgeLgt, rcv, slope, dist, wgt, nb)
+!*****************************************************************************
+! Compute receiver characteristics based on multiple flow direction algorithm
+
+  implicit none
+
+  interface
+    recursive subroutine quicksort(array, first, last, indices)
+      real( kind=8 ), dimension(:), intent(inout) :: array
+      integer, intent(in)  :: first, last
+      integer, dimension(:), intent(inout) :: indices
+    end subroutine quicksort
+  end interface
+
+  integer :: nb
+
+  integer, intent(in) :: nRcv
+  integer, intent(in) :: inIDs(nb)
+  real( kind=8 ), intent(in) :: elev(nb)
+  integer, intent(in) :: ngbID(nb, 12)
+  integer, intent(in) :: ngbNb(nb)
+  real( kind=8 ), intent(in) :: edgeLgt(nb,12)
+
+  integer, intent(out) :: rcv(nb,nRcv)
+  real( kind=8 ), intent(out) :: slope(nb,nRcv)
+  real( kind=8 ), intent(out) :: dist(nb,nRcv)
+  real( kind=8 ), intent(out) :: wgt(nb,nRcv)
+
+  integer :: k, n, p,kk
+  real( kind=8 ) :: slp(12),dst(12),val
+  integer :: id(12)
+
+  rcv = -1
+  slope = 0.
+  dist = 0.
+  wgt = 0.
+
+  do k = 1, nb
+    if(inIDs(k)>0)then
+      slp = 0.
+      id = 0
+      val = 0.
+      kk = 0
+      do p = 1, ngbNb(k)
+        n = ngbID(k,p)+1
+        if(n>0 .and. edgeLgt(k,p)>0.)then
+          val = (elev(k) - elev(n))/edgeLgt(k,p)
+          if(val>0.)then
+            kk = kk + 1
+            slp(kk) = val
+            id(kk) = n-1
+            dst(kk) = edgeLgt(k,p)
+          endif
+        endif
+      enddo
+
+      if(kk == 0)then
+        rcv(k,1:nRcv) = k-1
+      elseif(kk <= nRcv)then
+        val = 0.
+        rcv(k,1:nRcv) = k-1
+        do p = 1, kk
+          rcv(k,p) = id(p)
+          slope(k,p) = slp(p)
+          dist(k,p) = dst(p)
+          val = val + slp(p)
+        enddo
+        do p = 1, nRcv
+          wgt(k,p) = slp(p)/val
+        enddo
+      else
+        rcv(k,1:nRcv) = k-1
+        call quicksort(slp,1,kk,id)
+        n = 0
+        do p = kk,kk-nRcv
+          n = n + 1
+          rcv(k,n) = id(p)
+          slope(k,n) = slp(p)
+          dist(k,n) = dst(p)
+          val = val + slp(p)
+        enddo
+        do p = 1, nRcv
+          wgt(k,p) = slope(k,p)/val
+        enddo
+      endif
+    endif
+  enddo
+
+  return
+
+end subroutine MFDreceivers
 
 subroutine defineTIN( coords, cells_nodes, cells_edges, edges_nodes, circumcenter, &
                                     ngbNb, ngbID, edgeLgt, voroDist, n, nb, m  )
@@ -662,3 +753,76 @@ subroutine defineTIN( coords, cells_nodes, cells_edges, edges_nodes, circumcente
   enddo
 
 end subroutine defineTIN
+
+! quicksort routine from http://www.cgd.ucar.edu/pubsoft/TestQuicksort.html
+! Reference:
+! Nyhoff & Leestma, Fortran 90 for Engineers & Scientists
+! (New Jersey: Prentice Hall, 1997), pp 575-577.
+recursive subroutine quicksort(array, first, last, indices)
+  real( kind=8 ), dimension(:), intent(inout) :: array
+  integer, intent(in)  :: first, last
+  integer, dimension(:), intent(inout) :: indices
+
+  interface
+       subroutine split(array, low, high, mid, indices)
+          real( kind=8 ), dimension(:), intent(inout) :: array
+          integer, intent(in) :: low, high
+          integer, intent(out) :: mid
+          integer, dimension(:), intent(inout) :: indices
+       end subroutine split
+  end interface
+
+  integer :: mid
+
+  if(first < last)then
+    call split(array, first, last, mid, indices)
+    call quicksort(array, first, mid-1, indices)
+    call quicksort(array, mid+1, last,  indices)
+  endif
+
+end subroutine quicksort
+
+subroutine split(array, low, high, mid, indices)
+
+  real( kind=8 ), dimension(:), intent(inout) :: array
+  integer, intent(in) :: low, high
+  integer, intent(out) :: mid
+  integer, dimension(:), intent(inout) :: indices
+
+  integer :: left, right
+  real( kind=8 ) ::  pivot, swap
+  integer :: ipivot, iswap
+
+  left = low
+  right = high
+  pivot = array(low)
+  ipivot = indices(low)
+
+  do
+    if( left >= right ) exit
+    do
+      if( left >= right .or. array(right) < pivot ) exit
+      right = right - 1
+    enddo
+    do
+      if(array(left) > pivot) exit
+      left = left + 1
+    enddo
+
+    if( left < right )then
+      swap  = array(left)
+      array(left)  = array(right)
+      array(right) = swap
+      iswap = indices(left)
+      indices(left)  = indices(right)
+      indices(right) = iswap
+    endif
+  enddo
+
+  array(low) = array(right)
+  array(right) = pivot
+  mid = right
+  indices(low) = indices(right)
+  indices(right) = ipivot
+
+end subroutine split
