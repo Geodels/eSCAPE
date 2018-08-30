@@ -472,55 +472,6 @@ subroutine setKdMat( inIDs, elev, perc, csDiff, ngbNb, ngbID, edgeLgt, coeff, nb
 
 end subroutine setKdMat
 
-subroutine SFDreceivers( inIDs, elev, ngbNb, ngbID, edgeLgt, rcv, slope, dist, nb  )
-!*****************************************************************************
-! Compute receiver characteristics based on current elevation
-
-  implicit none
-
-  integer :: nb
-  integer, intent(in) :: inIDs(nb)
-  real( kind=8 ), intent(in) :: elev(nb)
-  integer, intent(in) :: ngbID(nb, 12)
-  integer, intent(in) :: ngbNb(nb)
-  real( kind=8 ), intent(in) :: edgeLgt(nb,12)
-
-  integer, intent(out) :: rcv(nb)
-  real( kind=8 ), intent(out) :: slope(nb)
-  real( kind=8 ), intent(out) :: dist(nb)
-
-  integer :: k, n, p
-  real( kind=8 ) :: slp
-
-  rcv = -1
-  slope = -1.e6
-  dist = 0.
-
-  do k = 1, nb
-    if(inIDs(k)>0)then
-      do p = 1, ngbNb(k)
-        n = ngbID(k,p)+1
-        if(n>0 .and. edgeLgt(k,p)>0.)then
-          slp = (elev(k) - elev(n))/edgeLgt(k,p)
-          if(slp>0. .and. slope(k)<slp)then
-            slope(k) = slp
-            rcv(k) = n-1
-            dist(k) = edgeLgt(k,p)
-          endif
-        endif
-      enddo
-      if(rcv(k) == -1)then
-        rcv(k) = k-1
-        slope(k) = 0.
-        dist(k) = 0.
-      endif
-    endif
-  enddo
-
-  return
-
-end subroutine SFDreceivers
-
 subroutine MFDreceivers( nRcv, inIDs, elev, ngbNb, ngbID, edgeLgt, rcv, slope, dist, wgt, nb)
 !*****************************************************************************
 ! Compute receiver characteristics based on multiple flow direction algorithm
@@ -595,7 +546,8 @@ subroutine MFDreceivers( nRcv, inIDs, elev, ngbNb, ngbID, edgeLgt, rcv, slope, d
         rcv(k,1:nRcv) = k-1
         call quicksort(slp,1,kk,id)
         n = 0
-        do p = kk,kk-nRcv
+        val = 0.
+        do p = kk,kk-nRcv+1,-1
           n = n + 1
           rcv(k,n) = id(p)
           slope(k,n) = slp(p)

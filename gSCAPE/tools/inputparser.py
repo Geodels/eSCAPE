@@ -39,7 +39,6 @@ try: range = xrange
 except: pass
 
 bc_types = {'flat'  : 'flat',  'fixed' : 'fixed', 'slope' : 'slope'}
-flowdir_types = {'SFD'  : 'SFD',  'MFD2' : 'MFD2',  'MFD3' : 'MFD3'}
 
 class ReadYaml(object):
     """
@@ -97,15 +96,19 @@ class ReadYaml(object):
                 Known types: {}".format(boundCond, bc_types.keys()))
 
         try:
-            flowDir = domainDict['flowdir']
+            self.flowDir = domainDict['flowdir']
         except KeyError as exc:
-            flowDir = 'SFD'
+            self.flowDir = 1
+        # try:
+        #     flowDir = domainDict['flowdir']
+        # except KeyError as exc:
+        #     flowDir = 'SFD'
 
-        if flowDir in flowdir_types.keys():
-            self.flowDir = flowdir_types[flowDir]
-        else:
-            raise TypeError("Flow direction type {:s} unknown\n\
-                Known types: {}".format(flowDir, flowdir_types.keys()))
+        # if flowDir in flowdir_types.keys():
+        #     self.flowDir = flowdir_types[flowDir]
+        # else:
+        #     raise TypeError("Flow direction type {:s} unknown\n\
+        #         Known types: {}".format(flowDir, flowdir_types.keys()))
 
         try:
             meshFile = domainDict['filename']

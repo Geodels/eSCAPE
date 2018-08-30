@@ -142,20 +142,6 @@ python module _fortran ! in
 
       end subroutine setKdMat
 
-      subroutine SFDreceivers(inids,elev,ngbnb,ngbid,edgelgt,rcv,slope,dist,nb)
-
-          integer dimension(nb),intent(in) :: inids
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          integer dimension(nb),intent(in),depend(nb) :: ngbnb
-          integer dimension(nb,12),intent(in),depend(nb) :: ngbid
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: edgelgt
-          integer dimension(nb),intent(out),depend(nb) :: rcv
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: slope
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: dist
-          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
-
-      end subroutine SFDreceivers
-
       subroutine MFDreceivers(nrcv,inids,elev,ngbnb,ngbid,edgelgt,rcv,slope,dist,wgt,nb)
 
           integer intent(in) :: nrcv
