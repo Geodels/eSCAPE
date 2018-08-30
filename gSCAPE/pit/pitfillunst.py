@@ -25,7 +25,7 @@ from petsc4py import PETSc
 from time import clock
 import warnings;warnings.simplefilter('ignore')
 
-import fillpy as fillAlgo
+import fillit as fillAlgo
 from gSCAPE._fortran import fillDepression
 from gSCAPE._fortran import pitVolume
 from gSCAPE._fortran import pitHeight
