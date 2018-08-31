@@ -24,8 +24,8 @@ from petsc4py import PETSc
 from time import clock
 import warnings;warnings.simplefilter('ignore')
 
-import voropy
 import meshio
+import meshplex
 
 from gSCAPE._fortran import defineTIN
 from gSCAPE._fortran import meanSlope
@@ -81,10 +81,10 @@ class UnstMesh(object):
         if MPIrank == 0 and self.verbose:
             print('Defining Petsc DMPlex (%0.02f seconds)'% (clock() - t))
 
-        # Create mesh structure with voropy
+        # Create mesh structure with meshplex
         t = clock()
         # Define mesh characteristics
-        Tmesh = voropy.mesh_tri.MeshTri(self.lcoords, self.lcells)
+        Tmesh = meshplex.mesh_tri.MeshTri(self.lcoords, self.lcells)
         boundary = Tmesh.get_boundary_vertices()
         self.FVmesh_area = Tmesh.get_control_volumes()
         self.FVmesh_bound = np.zeros(self.npoints,dtype=PETSc.IntType)
@@ -99,7 +99,7 @@ class UnstMesh(object):
         cells_edges = Tmesh.cells['edges']
 
         if MPIrank == 0 and self.verbose:
-            print('Voropy mesh (%0.02f seconds)'% (clock() - t))
+            print('Voronoi creation (%0.02f seconds)'% (clock() - t))
 
         # Tesselation on unstructured mesh
         t = clock()
