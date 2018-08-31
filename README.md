@@ -4,21 +4,33 @@ _Global Landscape Evolution Model_
 
 ## Dependencies
 
-### FillIT
-
-+ [numpy](http://numpy.org)
-+ [meshplex](https://github.com/nschloe/meshplex)
+1- Scientific computing libraries:
++ [numpy](http://www.numpy.org)
++ [scipy](https://www.scipy.org)
++ [mpi4py](https://mpi4py.readthedocs.io/en/stable/)
++ [petsc4py](https://petsc4py.readthedocs.io/en/stable/)
 + fortran compiler, preferably [gfortran](https://gcc.gnu.org/wiki/GFortran)
++ [fillit](https://github.com/Geodels/fillit)
 
-### Notebooks
+2- Reading/Writing/Parsing libraries:
++ [ruamel.yaml](https://yaml.readthedocs.io/en/latest/)
++ [pandas](https://pandas.pydata.org)
++ [meshio](https://github.com/nschloe/meshio)
++ [h5py](https://www.h5py.org)
++ [meshplex](https://github.com/nschloe/meshplex)
 
-To run the Examples (jupyter notebooks) it is recommended to use the `gscape-docker` image which has all the libraries already installed.
+### Docker
+
+To use/test **gSCAPE** quickly, it is recommended to use the `gscape-docker` image that is shipped with all the required libraries.
 
 [https://hub.docker.com/u/geodels/dashboard/](https://hub.docker.com/u/geodels/dashboard/)
 
 ## Installation
 
+Once the libraries mentioned above have been installed, **gSCAPE** will need to be cloned and compiled using the following:
+
 ```bash
+git clone https://github.com/Geodels/gSCAPE.git
 python setup.py install
 ```
 
@@ -38,7 +50,7 @@ mpirun -np N python run_gSCAPE.py -i input.yml
 
 `run_gSCAPE.py` consists of a limited number of calls to **gSCAPE**
 
-```python 
+```python
 import gSCAPE
 model = gSCAPE.LandscapeEvolutionModel(***)
 model.runProcesses()
