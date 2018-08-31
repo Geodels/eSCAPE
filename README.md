@@ -23,7 +23,7 @@ _Global Landscape Evolution Model_
 
 To use/test **gSCAPE** quickly, it is recommended to use the `gscape-docker` image that is shipped with all the required libraries.
 
-[https://hub.docker.com/u/geodels/dashboard/](https://hub.docker.com/u/geodels/dashboard/)
+[https://hub.docker.com/u/geodels/](https://hub.docker.com/u/geodels/)
 
 ## Installation
 
