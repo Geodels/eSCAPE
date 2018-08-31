@@ -136,3 +136,7 @@ output:
     makedir: False
 
 ```
+
+### Tutorials
+
+To get some additional info in regards to how to use **gSCAPE** a series of examples and tutorials is provided in the docker container (`gscape-docker`) and is also available for  download from the [gSCAPE-demo](https://github.com/Geodels/gSCAPE-demo) repository.
