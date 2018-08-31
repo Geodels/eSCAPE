@@ -37,10 +37,13 @@ mpirun -np N python run_gSCAPE.py -i input.yml
 ```
 
 `run_gSCAPE.py` consists of a limited number of calls to **gSCAPE**
-+ ```python import gSCAPE```
-+ `model = gSCAPE.LandscapeEvolutionModel(***)`
-+ `model.runProcesses()`
-+ `model.destroy()`
+
+```python 
+import gSCAPE
+model = gSCAPE.LandscapeEvolutionModel(***)
+model.runProcesses()
+model.destroy()
+```
 
 as shown below:
 
@@ -68,7 +71,7 @@ model.destroy()
 
 ### Input file
 
-Input file for **gSCAPE** are based on [YAML](https://circleci.com/blog/what-is-yaml-a-beginner-s-guide/) syntax.
+Input files for **gSCAPE** are based on [YAML](https://circleci.com/blog/what-is-yaml-a-beginner-s-guide/) syntax.
 
 A typical file will look like this:
 
