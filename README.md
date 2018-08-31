@@ -37,7 +37,7 @@ mpirun -np N python run_gSCAPE.py -i input.yml
 ```
 
 `run_gSCAPE.py` consists of a limited number of calls to **gSCAPE**
-+ `import gSCAPE`
++ ```python import gSCAPE```
 + `model = gSCAPE.LandscapeEvolutionModel(***)`
 + `model.runProcesses()`
 + `model.destroy()`
