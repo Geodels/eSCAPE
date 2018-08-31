@@ -89,7 +89,7 @@ class UnstMesh(object):
 
         # Voronoi and simplices declaration
         coords = Tmesh.node_coords
-        cc = Tmesh.edges_cells
+        Tmesh.create_edges()
         cc = Tmesh.cell_circumcenters
         edges_nodes = Tmesh.edges['nodes']
         cells_nodes = Tmesh.cells['nodes']
