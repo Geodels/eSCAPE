@@ -49,12 +49,11 @@ class UnstMesh(object):
         t0 = clock()
         t = clock()
         if MPIrank == 0:
-            pointsIO, cellsIO, ptdataIO, _, _ = meshio.read(filename[0])
-            cells = np.asarray(cellsIO['triangle'], dtype=np.int32)
-            coords = np.asarray(pointsIO, dtype=np.double)
+            cells = np.asarray(self.mdata.cells['triangle'], dtype=np.int32)
+            coords = np.asarray(self.mdata.points, dtype=np.double)
             MPIcomm.bcast(cells.shape, root=0)
             MPIcomm.bcast(coords.shape, root=0)
-            elev = ptdataIO[filename[1]]
+            elev = self.mdata.point_data[filename[1]]
         else:
             cell_shape = list(MPIcomm.bcast(None, root=0))
             coord_shape = list(MPIcomm.bcast(None, root=0))
@@ -85,16 +84,14 @@ class UnstMesh(object):
         t = clock()
         # Define mesh characteristics
         Tmesh = meshplex.mesh_tri.MeshTri(self.lcoords, self.lcells)
-        boundary = Tmesh.get_boundary_vertices()
-        self.FVmesh_area = Tmesh.get_control_volumes()
-        self.FVmesh_bound = np.zeros(self.npoints,dtype=PETSc.IntType)
-        self.FVmesh_bound[boundary] = 1
+        self.FVmesh_area = Tmesh.control_volumes
         self.boundary, self.localboundIDs = self.get_boundary()
 
         # Voronoi and simplices declaration
-        cc = Tmesh.get_cell_circumcenters()
-        edges_nodes = Tmesh.edges['nodes']
         coords = Tmesh.node_coords
+        cc = Tmesh.edges_cells
+        cc = Tmesh.cell_circumcenters
+        edges_nodes = Tmesh.edges['nodes']
         cells_nodes = Tmesh.cells['nodes']
         cells_edges = Tmesh.cells['edges']
 
@@ -323,8 +320,9 @@ class UnstMesh(object):
 
             self.rainNb = nb
             if np.isnan(self.raindata.iloc[nb,1]):
-                _, _, raindataIO, _, _ = meshio.read(self.raindata.iloc[nb,2])
-                rainArea = raindataIO[self.raindata.iloc[nb,3]]
+                mdata = meshio.read(self.raindata.iloc[nb,2])
+                rainArea = mdata.point_data[self.raindata.iloc[nb,3]]
+                del mdata
             else:
                 rainArea = np.full(len(self.elev),self.raindata.iloc[nb,1])
             self.rainArea = rainArea[self.natural2local]*self.FVmesh_area
@@ -367,8 +365,9 @@ class UnstMesh(object):
 
             self.tecNb = nb
             if np.isnan(self.tecdata.iloc[nb,1]):
-                _, _, tecdataIO, _, _ = meshio.read(self.tecdata.iloc[nb,2])
-                tectonic = tecdataIO[self.tecdata.iloc[nb,3]]
+                mdata = meshio.read(self.tecdata.iloc[nb,2])
+                tectonic = mdata.ptdata[self.tecdata.iloc[nb,3]]
+                del mdata
                 self.tectonic = tectonic[self.natural2local]*self.dt
             else:
                 tectonic = np.full(len(self.elev),self.tecdata.iloc[self.tecNb,1])

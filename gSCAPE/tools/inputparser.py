@@ -99,16 +99,6 @@ class ReadYaml(object):
             self.flowDir = domainDict['flowdir']
         except KeyError as exc:
             self.flowDir = 1
-        # try:
-        #     flowDir = domainDict['flowdir']
-        # except KeyError as exc:
-        #     flowDir = 'SFD'
-
-        # if flowDir in flowdir_types.keys():
-        #     self.flowDir = flowdir_types[flowDir]
-        # else:
-        #     raise TypeError("Flow direction type {:s} unknown\n\
-        #         Known types: {}".format(flowDir, flowdir_types.keys()))
 
         try:
             meshFile = domainDict['filename']
@@ -124,14 +114,14 @@ class ReadYaml(object):
             raise IOError('The mesh file is not found...')
 
         self.meshFile = meshFile
-        self.pointsIO, self.cellsIO, self.ptdataIO, _, _ = meshio.read(meshFile[0])
+        self.mdata = meshio.read(meshFile[0])
 
         try:
-            self.elev = self.ptdataIO[meshFile[1]]
+            self.elev = self.mdata.point_data[meshFile[1]]
 
         except KeyError as exc:
             print("Field name {} is missing from mesh file {}".format(meshFile[1],meshFile[0]))
-            print("The following fields are available: ",self.ptdataIO.keys())
+            print("The following fields are available: ",self.mdata.point_data.keys())
             print("Check your mesh file fields definition...")
             raise KeyError('Field name for elevation is not defined correctly or does not exist!')
 
@@ -342,10 +332,10 @@ class ReadYaml(object):
                             print("Unable to open rain file: ",rMap[0])
                             raise IOError('The rain file {} is not found for climatic event {}.'.format(rMap[0],k))
 
-                        rainptIO, raincellIO, raindataIO, _, _ = meshio.read(rMap[0])
-                        rainSet = raindataIO
+                        mdata = meshio.read(rMap[0])
+                        rainSet = mdata.point_data
                     else:
-                        rainSet = self.ptdataIO
+                        rainSet = self.mdata.point_data
                     try:
                         rainKey = rainSet[rMap[1]]
                     except KeyError as exc:
@@ -380,9 +370,6 @@ class ReadYaml(object):
 
         except KeyError as exc:
             self.raindata = None
-            # tmpRain = []
-            # tmpRain.insert(0, {'start': self.tStart, 'rUni': 0., 'rMap': None, 'rKey': None})
-            # self.raindata = pd.DataFrame(tmpRain,columns=['start', 'rUni', 'rMap', 'rKey'])
             pass
 
         return
@@ -421,10 +408,10 @@ class ReadYaml(object):
                             print("Unable to open tectonic file: ",tMap[0])
                             raise IOError('The tectonic file {} is not found for climatic event {}.'.format(tMap[0],k))
 
-                        tecptIO, teccellIO, tecdataIO, _, _ = meshio.read(tMap[0])
-                        tecSet = tecdataIO
+                        mdata = meshio.read(tMap[0])
+                        tecSet = mdata.point_data
                     else:
-                        tecSet = self.ptdataIO
+                        tecSet = self.mdata.point_data
                     try:
                         tecKey = tecSet[tMap[1]]
                     except KeyError as exc:
@@ -459,8 +446,5 @@ class ReadYaml(object):
         except KeyError as exc:
             self.tecdata = None
             pass
-            # tmpTec = []
-            # tmpTec.insert(0, {'start': self.tStart, 'tUni': 0., 'tMap': None, 'tKey': None})
-            # self.tecdata = pd.DataFrame(tmpTec,columns=['start', 'tUni', 'tMap', 'tKey'])
 
         return

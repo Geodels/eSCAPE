@@ -68,8 +68,10 @@ parser = argparse.ArgumentParser(description='This is a simple entry to run gSCA
 parser.add_argument('-i','--input', help='Input file name (YAML file)',required=True)
 parser.add_argument('-v','--verbose',help='True/false option for verbose', required=False,action="store_true",default=False)
 args = parser.parse_args()
-print("Input file: {}".format(args.input))
-print(" Verbose is on? {}".format(args.verbose))
+
+if args.verbose:
+  print("Input file: {}".format(args.input))
+  print(" Verbose is on? {}".format(args.verbose))
 
 # Reading input file
 model = sim.LandscapeEvolutionModel(args.input,args.verbose)
