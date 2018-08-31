@@ -24,7 +24,7 @@ python setup.py install
 
 ## Usage
 
-Either via jupyter notebooks or python files.
+Either via _jupyter notebooks_ or _python_ files.
 
 ```bash
 python run_gSCAPE.py -i input.yml -v
@@ -36,10 +36,16 @@ where the `run_gSCAPE.py` script takes one required argument the input filename 
 mpirun -np N python run_gSCAPE.py -i input.yml
 ```
 
-### run_gSCAPE.py
+`run_gSCAPE.py` consists of a limited number of calls to **gSCAPE**
++ `import gSCAPE`
++ `model = gSCAPE.LandscapeEvolutionModel(***)`
++ `model.runProcesses()`
++ `model.destroy()`
+
+as shown below:
 
 ```python
-iimport argparse
+import argparse
 import gSCAPE as sim
 
 # Parsing command line arguments
@@ -64,7 +70,7 @@ model.destroy()
 
 Input file for **gSCAPE** are based on [YAML](https://circleci.com/blog/what-is-yaml-a-beginner-s-guide/) syntax.
 
-A typical file will look like:
+A typical file will look like this:
 
 ```YAML
 name: Description of the what is going to be done in this simulation...
@@ -105,7 +111,7 @@ spl:
     Ke: 1.e-5
 
 diffusion:
-    hillslopeK: 0.5.e-2
+    hillslopeK: 5.e-2
     streamK: 300.
     oceanK: 100.
     step: 50
