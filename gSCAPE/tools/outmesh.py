@@ -81,11 +81,11 @@ class WriteMesh(object):
 
     def outputMesh(self, remesh=False):
 
-        self.save_DMPlex_local_hdf5(remesh)
+        self._save_DMPlex_local_hdf5(remesh)
 
         return
 
-    def save_DMPlex_local_hdf5(self, remesh):
+    def _save_DMPlex_local_hdf5(self, remesh):
         """
         Saves mesh local information stored in the DMPlex to HDF5 file
         If the file already exists, it is overwritten.

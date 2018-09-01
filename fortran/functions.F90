@@ -16,6 +16,10 @@
 
 ! f2py --overwrite-signature -m _fortran -h functions.pyf functions.f90
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! INTERNAL FUNCTIONS !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 subroutine euclid( p1, p2, norm)
 !*****************************************************************************
 ! Computes the Euclidean vector norm between 2 points
@@ -34,6 +38,124 @@ subroutine euclid( p1, p2, norm)
   return
 
 end subroutine euclid
+
+recursive subroutine quicksort(array, first, last, indices)
+!*****************************************************************************
+! quicksort routine from http://www.cgd.ucar.edu/pubsoft/TestQuicksort.html
+! Reference:
+! Nyhoff & Leestma, Fortran 90 for Engineers & Scientists
+! (New Jersey: Prentice Hall, 1997), pp 575-577.
+
+  real( kind=8 ), dimension(:), intent(inout) :: array
+  integer, intent(in)  :: first, last
+  integer, dimension(:), intent(inout) :: indices
+
+  interface
+       subroutine split(array, low, high, mid, indices)
+          real( kind=8 ), dimension(:), intent(inout) :: array
+          integer, intent(in) :: low, high
+          integer, intent(out) :: mid
+          integer, dimension(:), intent(inout) :: indices
+       end subroutine split
+  end interface
+
+  integer :: mid
+
+  if(first < last)then
+    call split(array, first, last, mid, indices)
+    call quicksort(array, first, mid-1, indices)
+    call quicksort(array, mid+1, last,  indices)
+  endif
+
+end subroutine quicksort
+
+subroutine split(array, low, high, mid, indices)
+!*****************************************************************************
+! used by quicksort  from http://www.cgd.ucar.edu/pubsoft/TestQuicksort.html
+! Reference:
+! Nyhoff & Leestma, Fortran 90 for Engineers & Scientists
+! (New Jersey: Prentice Hall, 1997), pp 575-577.
+
+  real( kind=8 ), dimension(:), intent(inout) :: array
+  integer, intent(in) :: low, high
+  integer, intent(out) :: mid
+  integer, dimension(:), intent(inout) :: indices
+
+  integer :: left, right
+  real( kind=8 ) ::  pivot, swap
+  integer :: ipivot, iswap
+
+  left = low
+  right = high
+  pivot = array(low)
+  ipivot = indices(low)
+
+  do
+    if( left >= right ) exit
+    do
+      if( left >= right .or. array(right) < pivot ) exit
+      right = right - 1
+    enddo
+    do
+      if(array(left) > pivot) exit
+      left = left + 1
+    enddo
+
+    if( left < right )then
+      swap  = array(left)
+      array(left)  = array(right)
+      array(right) = swap
+      iswap = indices(left)
+      indices(left)  = indices(right)
+      indices(right) = iswap
+    endif
+  enddo
+
+  array(low) = array(right)
+  array(right) = pivot
+  mid = right
+  indices(low) = indices(right)
+  indices(right) = ipivot
+
+end subroutine split
+
+subroutine halfVal(perc1,perc2,elev1,elev2,val)
+!*****************************************************************************
+
+  real(kind=8), intent(in) :: perc1,perc2
+  real(kind=8), intent(in) :: elev1,elev2
+  real( kind=8 ), intent(out) :: val
+
+  if(perc1==0. .and. perc2==0.)then
+    val = 0.
+    return
+  endif
+  if(perc1>0. .and. perc2>0.)then
+    val = (perc1+perc2)*0.5
+    return
+  endif
+  if(perc1>0. .and. perc2==0.)then
+    if(elev1>elev2)then
+        val = perc1*0.5
+    else
+      val = 0.
+    endif
+    return
+  endif
+  if(perc1==0. .and. perc2>0.)then
+    if(elev1>elev2)then
+        val = 0.
+    else
+      val = perc2*0.5
+    endif
+    return
+  endif
+
+end subroutine halfVal
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! PIT FILLING RELATED FUNCTIONS !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 subroutine pitVolume(depLocal, pitID, pitNb, pitVol, notpitVol, m)
 !*****************************************************************************
@@ -199,6 +321,10 @@ subroutine fillDepression(dem, fillp, pitID, watershed, graph, nv, elev, depress
 
 end subroutine fillDepression
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! BOUNDARY CONDITION FUNCTIONS !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 subroutine meanSlope(elev, bID, gbounds, ngbNb, ngbID, elght, bslp, nb, b)
 !*****************************************************************************
 ! Define average slope along boundary edges
@@ -318,6 +444,10 @@ subroutine slpBounds(elev, bslp, bID, gbounds, ngbNb, ngbID, elght, be, nb, b)
 
 end subroutine slpBounds
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! HILLSLOPE PROCESSES FUNCTIONS !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 subroutine setHillslopeCoeff(Kd, area, ngbNb, lgth, vlgth, dcoeff, nb)
 !*****************************************************************************
 ! Define hillslope coefficients
@@ -354,6 +484,10 @@ subroutine setHillslopeCoeff(Kd, area, ngbNb, lgth, vlgth, dcoeff, nb)
     return
 
 end subroutine setHillslopeCoeff
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! SEDIMENT DIFFUSION FUNCTIONS !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 subroutine initDiffCoeff(Kds, Kdm, area, ngbNb, lgth, vlgth, sC, sM, nb)
 !*****************************************************************************
@@ -395,49 +529,17 @@ subroutine initDiffCoeff(Kds, Kdm, area, ngbNb, lgth, vlgth, sC, sM, nb)
 
 end subroutine initDiffCoeff
 
-subroutine halfVal(perc1,perc2,elev1,elev2,val)
+subroutine setKdMat( sealvl, inIDs, elev, perc, clDi, cmDi, ngbNb, ngbID, edgeLgt, coeff, nb )
 !*****************************************************************************
-
-  real(kind=8), intent(in) :: perc1,perc2
-  real(kind=8), intent(in) :: elev1,elev2
-  real( kind=8 ), intent(out) :: val
-
-  if(perc1==0. .and. perc2==0.)then
-    val = 0.
-    return
-  endif
-  if(perc1>0. .and. perc2>0.)then
-    val = (perc1+perc2)*0.5
-    return
-  endif
-  if(perc1>0. .and. perc2==0.)then
-    if(elev1>elev2)then
-        val = perc1*0.5
-    else
-      val = 0.
-    endif
-    return
-  endif
-  if(perc1==0. .and. perc2>0.)then
-    if(elev1>elev2)then
-        val = 0.
-    else
-      val = perc2*0.5
-    endif
-    return
-  endif
-
-end subroutine halfVal
-
-subroutine setKdMat( inIDs, elev, perc, csDiff, ngbNb, ngbID, edgeLgt, coeff, nb )
-!*****************************************************************************
-! Compute diffusion coefficients for sediment matrices
+! Compute diffusion coefficients for sediment matrix
 
   implicit none
 
   integer :: nb
+  real( kind=8 ), intent(in) :: sealvl
   integer, intent(in) :: inIDs(nb)
-  real( kind=8 ), intent(in) :: csDiff(nb,12)
+  real( kind=8 ), intent(in) :: cmDi(nb,12)
+  real( kind=8 ), intent(in) :: clDi(nb,12)
   real( kind=8 ), intent(in) :: elev(nb)
   real( kind=8 ), intent(in) :: perc(nb)
   integer, intent(in) :: ngbID(nb, 12)
@@ -447,7 +549,7 @@ subroutine setKdMat( inIDs, elev, perc, csDiff, ngbNb, ngbID, edgeLgt, coeff, nb
   real( kind=8 ), intent(out) :: coeff(nb,13)
 
   integer :: k, n, p
-  real( kind=8 ) :: val, val0
+  real( kind=8 ) :: kd, val, val0
 
   coeff = 0.
 
@@ -456,9 +558,24 @@ subroutine setKdMat( inIDs, elev, perc, csDiff, ngbNb, ngbID, edgeLgt, coeff, nb
     if(inIDs(k)>0)then
       do p = 1, ngbNb(k)
         n = ngbID(k,p)+1
+        kd = clDi(k,p)
         if(n>0 .and. edgeLgt(k,p)>0.)then
           call halfVal(perc(k),perc(n),elev(k),elev(n),val)
-          coeff(k,p+1) = -csDiff(k,p)*val
+          if(val>0.)then
+            if(elev(k)<sealvl .and. elev(n)<sealvl)then
+              kd = cmDi(k,p)
+            elseif(elev(k)>=sealvl .and. elev(n)>=sealvl)then
+              kd = clDi(k,p)
+            elseif(elev(k)<sealvl .and. elev(n)>=sealvl)then
+              kd = clDi(k,p)
+            elseif(elev(k)>=sealvl .and. elev(n)<sealvl)then
+              kd = clDi(k,p)
+            else
+              if(elev(k)>=sealvl) kd = clDi(k,p)
+              if(elev(k)<sealvl) kd = cmDi(k,p)
+            endif
+          endif
+          coeff(k,p+1) = -kd*val
           val0 = val0-coeff(k,p+1)
         endif
       enddo
@@ -471,6 +588,10 @@ subroutine setKdMat( inIDs, elev, perc, csDiff, ngbNb, ngbID, edgeLgt, coeff, nb
   return
 
 end subroutine setKdMat
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! FLOW DIRECTION FUNCTIONS !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 subroutine MFDreceivers( nRcv, inIDs, elev, ngbNb, ngbID, edgeLgt, rcv, slope, dist, wgt, nb)
 !*****************************************************************************
@@ -564,6 +685,10 @@ subroutine MFDreceivers( nRcv, inIDs, elev, ngbNb, ngbID, edgeLgt, rcv, slope, d
   return
 
 end subroutine MFDreceivers
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! MESH DECLARATION FUNCTIONS !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 subroutine defineTIN( coords, cells_nodes, cells_edges, edges_nodes, circumcenter, &
                                     ngbNb, ngbID, edgeLgt, voroDist, n, nb, m  )
@@ -705,76 +830,3 @@ subroutine defineTIN( coords, cells_nodes, cells_edges, edges_nodes, circumcente
   enddo
 
 end subroutine defineTIN
-
-! quicksort routine from http://www.cgd.ucar.edu/pubsoft/TestQuicksort.html
-! Reference:
-! Nyhoff & Leestma, Fortran 90 for Engineers & Scientists
-! (New Jersey: Prentice Hall, 1997), pp 575-577.
-recursive subroutine quicksort(array, first, last, indices)
-  real( kind=8 ), dimension(:), intent(inout) :: array
-  integer, intent(in)  :: first, last
-  integer, dimension(:), intent(inout) :: indices
-
-  interface
-       subroutine split(array, low, high, mid, indices)
-          real( kind=8 ), dimension(:), intent(inout) :: array
-          integer, intent(in) :: low, high
-          integer, intent(out) :: mid
-          integer, dimension(:), intent(inout) :: indices
-       end subroutine split
-  end interface
-
-  integer :: mid
-
-  if(first < last)then
-    call split(array, first, last, mid, indices)
-    call quicksort(array, first, mid-1, indices)
-    call quicksort(array, mid+1, last,  indices)
-  endif
-
-end subroutine quicksort
-
-subroutine split(array, low, high, mid, indices)
-
-  real( kind=8 ), dimension(:), intent(inout) :: array
-  integer, intent(in) :: low, high
-  integer, intent(out) :: mid
-  integer, dimension(:), intent(inout) :: indices
-
-  integer :: left, right
-  real( kind=8 ) ::  pivot, swap
-  integer :: ipivot, iswap
-
-  left = low
-  right = high
-  pivot = array(low)
-  ipivot = indices(low)
-
-  do
-    if( left >= right ) exit
-    do
-      if( left >= right .or. array(right) < pivot ) exit
-      right = right - 1
-    enddo
-    do
-      if(array(left) > pivot) exit
-      left = left + 1
-    enddo
-
-    if( left < right )then
-      swap  = array(left)
-      array(left)  = array(right)
-      array(right) = swap
-      iswap = indices(left)
-      indices(left)  = indices(right)
-      indices(right) = iswap
-    endif
-  enddo
-
-  array(low) = array(right)
-  array(right) = pivot
-  mid = right
-  indices(low) = indices(right)
-  indices(right) = ipivot
-
-end subroutine split

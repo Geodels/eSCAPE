@@ -66,7 +66,7 @@ class UnstMesh(object):
             print('Reading mesh information (%0.02f seconds)' % (clock() - t))
 
         # Create DMPlex
-        self.create_DMPlex(dim, coords, cells, elev)
+        self._create_DMPlex(dim, coords, cells, elev)
 
         # Define local vertex & cells
         cStart, cEnd = self.dm.getHeightStratum(0)
@@ -85,7 +85,7 @@ class UnstMesh(object):
         # Define mesh characteristics
         Tmesh = meshplex.mesh_tri.MeshTri(self.lcoords, self.lcells)
         self.FVmesh_area = Tmesh.control_volumes
-        self.boundary, self.localboundIDs = self.get_boundary()
+        self.boundary, self.localboundIDs = self._get_boundary()
 
         # Voronoi and simplices declaration
         coords = Tmesh.node_coords
@@ -138,7 +138,7 @@ class UnstMesh(object):
 
         return
 
-    def naturalNumbering(self,coords):
+    def _naturalNumbering(self,coords):
 
         from scipy.spatial import cKDTree as _cKDTree
 
@@ -154,7 +154,7 @@ class UnstMesh(object):
 
         return
 
-    def create_DMPlex(self, dim, coords, cells, elev):
+    def _create_DMPlex(self, dim, coords, cells, elev):
         """
         Create a PETSc DMPlex object from the mesh attributes
         """
@@ -167,7 +167,7 @@ class UnstMesh(object):
         # Create boundary labels
         t0 = clock()
         label = "boundary"
-        self.set_DMPlex_boundary_points(label)
+        self._set_DMPlex_boundary_points(label)
 
         # label coarse DM in case it is ever needed again
         self.dm.createLabel("coarse")
@@ -212,7 +212,7 @@ class UnstMesh(object):
         t0 = clock()
         coords = MPI.COMM_WORLD.bcast(coords, root=0)
         elev = MPI.COMM_WORLD.bcast(elev, root=0)
-        self.naturalNumbering(coords)
+        self._naturalNumbering(coords)
 
         self.hLocal.setArray(elev[self.natural2local])
         self.dm.localToGlobal(self.hLocal, self.hGlobal)
@@ -227,7 +227,7 @@ class UnstMesh(object):
 
         return
 
-    def get_boundary(self, label="boundary"):
+    def _get_boundary(self, label="boundary"):
         """
         Find the nodes on the boundary from the DM
         """
@@ -265,9 +265,9 @@ class UnstMesh(object):
         # Sea level
         self.sealevel = self.seafunction(self.tNow)
         # Climate
-        self.updateRain()
+        self._updateRain()
         # Tectonic
-        self.updateTectonic()
+        self._updateTectonic()
 
         # Apply boundary forcing for slope and flat conditions
         if self.boundCond == 'slope' :
@@ -299,7 +299,7 @@ class UnstMesh(object):
 
         return
 
-    def updateRain(self):
+    def _updateRain(self):
         """
         Find the current rain values for the considered time interval
         """
@@ -344,7 +344,7 @@ class UnstMesh(object):
 
         return
 
-    def updateTectonic(self):
+    def _updateTectonic(self):
         """
         Find the current tectonic rates for the considered time interval
         """
@@ -386,7 +386,7 @@ class UnstMesh(object):
 
         return
 
-    def set_DMPlex_boundary_points(self, label):
+    def _set_DMPlex_boundary_points(self, label):
         """
         Finds the points that join the edges that have been
         marked as "boundary" faces in the DAG then sets them
@@ -418,7 +418,7 @@ class UnstMesh(object):
 
     def destroy_DMPlex(self):
         """
-        Destroy PETSc DMPlex objects.
+        Destroy PETSc DMPlex objects and associated Petsc local/global Vectors and Matrices.
         """
 
         t0 = clock()

@@ -122,7 +122,7 @@ class SPMesh(object):
 
         return vector2
 
-    def buidFlowDirection(self):
+    def _buidFlowDirection(self):
 
         t0 = clock()
         self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
@@ -148,7 +148,7 @@ class SPMesh(object):
 
     def FlowAccumulation(self):
 
-        self.buidFlowDirection()
+        self._buidFlowDirection()
 
         t0 = clock()
         # Build drainage area matrix
@@ -264,21 +264,16 @@ class SPMesh(object):
             print('Fill Pit Depression (%0.02f seconds)'% (clock() - t0))
 
         t0 = clock()
-        self.diffuseOceanSediment()
+        self._diffuseSediment()
         if MPIrank == 0 and self.verbose:
-            print('Compute Ocean Sediment Diffusion (%0.02f seconds)'% (clock() - t0))
-
-        t0 = clock()
-        self.diffuseLandSediment()
-        if MPIrank == 0 and self.verbose:
-            print('Compute Land Sediment Diffusion (%0.02f seconds)'% (clock() - t0))
+            print('Compute Sediment Diffusion (%0.02f seconds)'% (clock() - t0))
 
         return
 
-    def _matrix_diff_build(self, elev, perc, coeffs):
+    def _matrix_diff_build(self, elev, perc):
 
-        diffCoeffs = setKdMat( self.inIDs, elev, perc, coeffs, self.FVmesh_ngbNbs,
-                                           self.FVmesh_ngbID, self.FVmesh_edgeLgt )
+        diffCoeffs = setKdMat( self.sealevel, self.inIDs, elev, perc, self.oceanKd, self.oceanKd,
+                                                self.FVmesh_ngbNbs, self.FVmesh_ngbID, self.FVmesh_edgeLgt )
 
         tDiff = self._matrix_build_diag(diffCoeffs[:,0])
         for k in range(0, self.FVmesh_ngbNbs.max()):
@@ -302,14 +297,16 @@ class SPMesh(object):
         self._solve_KSP(True, tDiff, self.hOld, self.hGlobal)
         tDiff.destroy()
 
-    def _diffusionTimeStep(self, coeff, hArr, pArr, hG0, hL0, addFlux, inFlux, sFlux):
+        return
+
+    def _diffusionTimeStep(self, hArr, pArr, hG0, hL0, addFlux, inFlux, sFlux):
 
         shape = hG0.shape
         for tStep in range(self.iters):
 
             # Solve PDE for diffusion system
             self.hGlobal.copy(result=self.hOld)
-            self._matrix_diff_build(hArr, pArr, coeff)
+            self._matrix_diff_build(hArr, pArr)
 
             # Check for potential unstabilities
             tmpArr = self.hGlobal.getArray()
@@ -357,7 +354,7 @@ class SPMesh(object):
 
         return
 
-    def diffuseOceanSediment(self):
+    def _diffuseSediment(self):
 
         # Constant local & global vectors/arrays
         self.hGlobal.copy(result=self.hG0)
@@ -371,8 +368,11 @@ class SPMesh(object):
         vSea[self.idGBounds] = 0.
         self.vLoc.setArray(vSea)
 
-        # From volume to sediment thickness to distribute at each interval
+        # Add inland sediment volume to diffuse
         self.dm.localToGlobal(self.vLoc, self.vGlob, 1)
+        self.vGlob.axpy(1.,self.diffDep)
+
+        # From volume to sediment thickness to distribute at each interval
         self.vGlob.scale(2.0/float(self.iters))
         inFlux = self.vGlob.sum()
         addFlux = self.vGlob.sum()
@@ -395,49 +395,7 @@ class SPMesh(object):
             return
 
         # Solve temporal diffusion equation
-        self._diffusionTimeStep(self.oceanKd, hArr, pArr, hG0, hL0, addFlux, inFlux, sFlux)
-
-        # Cleaning
-        del pArr,hArr,sFlux
-        del hG0,hL0
-
-        # Update erosion/deposition local/global vectors
-        self.stepED.waxpy(-1.0,self.hG0,self.hGlobal)
-        self.cumED.axpy(1.,self.stepED)
-        self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
-        self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
-
-    def diffuseLandSediment(self):
-
-        # Constant local & global vectors/arrays
-        self.hGlobal.copy(result=self.hG0)
-        hG0 = self.hG0.getArray().copy()
-        hL0 = self.hLocal.getArray().copy()
-
-        # From volume to sediment thickness to distribute at each interval
-        self.diffDep.copy(result=self.vGlob)
-        self.vGlob.scale(2.0/self.iters)
-        inFlux = self.vGlob.sum()
-        addFlux = self.vGlob.sum()
-        self.vGlob.pointwiseDivide(self.vGlob,self.areaGlobal)
-        sFlux = self.vGlob.getArray().copy()
-
-        # Prepare arrays
-        self.hGlobal.setArray(hG0+sFlux)
-        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
-        hArr = self.hLocal.getArray().copy()
-        pArr = hArr-hL0
-        pArr[pArr<0.] = 0.
-        pArr[pArr>1.] = 1.
-
-        # Nothing to diffuse...
-        if inFlux <= 0. :
-            del hArr,pArr
-            del hL0,hG0
-            return
-
-        # Solve temporal diffusion equation
-        self._diffusionTimeStep(self.streamKd, hArr, pArr, hG0, hL0, addFlux, inFlux, sFlux)
+        self._diffusionTimeStep(hArr, pArr, hG0, hL0, addFlux, inFlux, sFlux)
 
         # Cleaning
         del pArr,hArr,sFlux

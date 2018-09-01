@@ -128,12 +128,14 @@ python module _fortran ! in
 
       end subroutine initDiffCoeff
 
-      subroutine setKdMat(inids,elev,perc,csdiff,ngbnb,ngbid,edgelgt,coeff,nb)
+      subroutine setKdMat(sealvl,inids,elev,perc,cldi,cmdi,ngbnb,ngbid,edgelgt,coeff,nb)
 
+          real(kind=8) intent(in) :: sealvl
           integer dimension(nb),intent(in) :: inids
           real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
           real(kind=8) dimension(nb),intent(in),depend(nb) :: perc
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: csdiff
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cldi
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cmdi
           integer dimension(nb),intent(in),depend(nb) :: ngbnb
           integer dimension(nb,12),intent(in),depend(nb) :: ngbid
           real(kind=8) dimension(nb,12),intent(in),depend(nb) :: edgelgt

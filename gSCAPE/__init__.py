@@ -32,6 +32,26 @@ import tools
 MPIrank = MPI.COMM_WORLD.Get_rank()
 
 def LandscapeEvolutionModel(filename, *args, **kwargs):
+    """
+    Instantiates gSCAPE model object and performs surface processes evolution.
+
+    This object contains methods for the following operations:
+     - initialisation of gSCAPE mesh based on input file options.
+     - computation of surface processes
+     - cleaning/destruction of PETSC objects
+
+    Parameters
+    ----------
+     filename : YAML input file
+     verbose : True/False
+        Output option for model main functions
+    showlog : True/False
+        Output option for PETSC logging file
+
+    Returns
+    -------
+     LandscapeEvolutionModel : object
+    """
 
     class LandscapeEvolutionModelClass(_ReadYaml, _WriteMesh, _UnstMesh, _UnstPit, _SPMesh):
 
@@ -42,6 +62,7 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
                 self.log = _PETSc.Log()
                 self.log.begin()
 
+            self.modelRunTime = clock()
             t_init = clock()
             self.verbose = verbose
             _ReadYaml.__init__(self, filename)
@@ -65,6 +86,16 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
             return
 
         def runProcesses(self):
+            """
+            Run gSCAPE Earth surface processes.
+
+            This function contains methods for the following operations:
+             - calculating flow accumulation
+             - erosion/deposition induced by stream power law
+             - depression identification and pit filling
+             - stream induced deposition diffusion
+             - hillslope diffusion
+            """
 
             while(self.tNow<=self.tEnd):
                 tstep = clock()
@@ -106,11 +137,18 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
             return
 
         def destroy(self):
+            """
+            Destroy PETSc DMPlex objects and associated Petsc local/global Vectors and Matrices.
+            Safely quit gSCAPE model.
+            """
 
             _UnstMesh.destroy_DMPlex(self)
 
             if self.showlog:
                 self.log.view()
+
+            if MPIrank == 0:
+                print('\n+++\n+++ Total run time (%0.02f seconds)\n+++'% (clock() - self.modelRunTime))
 
             return
 
