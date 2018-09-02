@@ -79,7 +79,6 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
 
             # Get external forces
             _UnstMesh.applyForces(self)
-
             if MPIrank == 0:
                 print('--- Initialisation Phase (%0.02f seconds)'% (clock() - t_init))
 

@@ -46,12 +46,18 @@ class SPMesh(object):
         # KSP solver parameters
         self.rtol = 1.0e-8
 
+        data = np.zeros(1,dtype=int)
+        data[0] = self.FVmesh_ngbNbs.max()
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, data, op=MPI.MAX)
+        self.maxNgbhs = data[0]
+
         # Diffusion matrix construction
         if self.Cd > 0.:
             diffCoeffs = setHillslopeCoeff(self.Cd*self.dt,self.FVmesh_area,self.FVmesh_ngbNbs,
                                                                  self.FVmesh_edgeLgt,self.FVmesh_voroDist)
             self.Diff = self._matrix_build_diag(diffCoeffs[:,0])
-            for k in range(0, self.FVmesh_ngbNbs.max()):
+
+            for k in range(0, self.maxNgbhs):
                 tmpMat = self._matrix_build()
                 indptr = np.arange(0, self.npoints+1, dtype=PETSc.IntType)
                 indices = self.FVmesh_ngbID[:,k].copy()
@@ -153,7 +159,6 @@ class SPMesh(object):
         t0 = clock()
         # Build drainage area matrix
         if self.rainFlag:
-            # WAMat = self._matrix_build()
             WAMat = self.iMat.copy()
             for k in range(0, self.flowDir):
                 tmpMat = self._matrix_build()
@@ -264,9 +269,10 @@ class SPMesh(object):
             print('Fill Pit Depression (%0.02f seconds)'% (clock() - t0))
 
         t0 = clock()
-        self._diffuseSediment()
-        if MPIrank == 0 and self.verbose:
-            print('Compute Sediment Diffusion (%0.02f seconds)'% (clock() - t0))
+        if self.iters > 0:
+            self._diffuseSediment()
+            if MPIrank == 0 and self.verbose:
+                print('Compute Sediment Diffusion (%0.02f seconds)'% (clock() - t0))
 
         return
 
@@ -276,7 +282,7 @@ class SPMesh(object):
                                                 self.FVmesh_ngbNbs, self.FVmesh_ngbID, self.FVmesh_edgeLgt )
 
         tDiff = self._matrix_build_diag(diffCoeffs[:,0])
-        for k in range(0, self.FVmesh_ngbNbs.max()):
+        for k in range(0, self.maxNgbhs):
             tmpMat = self._matrix_build()
             indptr = np.arange(0, self.npoints+1, dtype=PETSc.IntType)
             indices = self.FVmesh_ngbID[:,k].copy()
@@ -316,9 +322,9 @@ class SPMesh(object):
              # Remove portion of boundary deposits
             self.hGlobal.copy(result=self.vGlob)
             self.vGlob.axpy(-1.,self.hOld)
-            self.vGlob.scale(0.9)
+            # self.vGlob.scale(0.9)
             tmpArr = np.zeros(shape)
-            tmpArr[self.boundGIDs] = 1.
+            tmpArr[self.boundGIDs] = 0.
             self.vecG.setArray(tmpArr)
             self.vecG.pointwiseMult(self.vecG,self.vGlob)
             self.hGlobal.axpy(-1.,self.vecG)
