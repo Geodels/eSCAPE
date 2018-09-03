@@ -38,7 +38,7 @@ git clone https://github.com/Geodels/gSCAPE.git
 python setup.py install
 ```
 
-An example on how to install it on HPC server is provided in the [wiki](https://github.com/Geodels/gSCAPE/wiki/Installation-on-HPC) page.
+An example on how to install it on a _HPC server_ is provided in the [**wiki**](https://github.com/Geodels/gSCAPE/wiki/Installation-on-HPC) page.
 
 ## Usage
 
