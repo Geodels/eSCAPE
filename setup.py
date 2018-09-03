@@ -31,6 +31,7 @@ def configuration(parent_package='',top_path=None):
                         libraries=[],
                         library_dirs=[],
                         extra_f90_compile_args=['-O3'],
+                        extra_link_args = ['-shared'],
                         runtime_library_dirs=[])
 
     return config
