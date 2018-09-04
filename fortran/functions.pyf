@@ -60,13 +60,11 @@ python module _fortran ! in
 
       end subroutine fillDepression
 
-      subroutine meanSlope(elev,bid,gbounds,ngbnb,ngbid,elght,bslp,nb,b)
+      subroutine meanSlope(elev,bid,gbounds,bslp,nb,b)
 
           real(kind=8) dimension(nb),intent(in) :: elev
           integer dimension(b),intent(in) :: bid
           integer dimension(nb),intent(in),depend(nb) :: gbounds
-          integer dimension(nb),intent(in),depend(nb) :: ngbnb
-          integer dimension(nb,12),intent(in),depend(nb) :: ngbid
           real(kind=8) dimension(nb,12),intent(in),depend(nb) :: elght
           real(kind=8) dimension(nb),intent(out),depend(nb) :: bslp
           integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
@@ -74,48 +72,41 @@ python module _fortran ! in
 
       end subroutine meanSlope
 
-      subroutine flatBounds(elev,bid,gbounds,ngbnb,ngbid,be,nb,b)
+      subroutine flatBounds(elev,bid,gbounds,be,nb,b)
 
           real(kind=8) dimension(nb),intent(in) :: elev
           integer dimension(b),intent(in) :: bid
           integer dimension(nb),intent(in),depend(nb) :: gbounds
-          integer dimension(nb),intent(in),depend(nb) :: ngbnb
-          integer dimension(nb,12),intent(in),depend(nb) :: ngbid
           real(kind=8) dimension(nb),intent(out),depend(nb) :: be
           integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
           integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
 
       end subroutine flatBounds
 
-      subroutine slpBounds(elev,bslp,bid,gbounds,ngbnb,ngbid,elght,be,nb,b)
+      subroutine slpBounds(elev,bslp,bid,gbounds,be,nb,b)
 
           real(kind=8) dimension(nb),intent(in) :: elev
           real(kind=8) dimension(nb),intent(in) :: bslp
           integer dimension(b),intent(in) :: bid
           integer dimension(nb),intent(in),depend(nb) :: gbounds
-          integer dimension(nb),intent(in),depend(nb) :: ngbnb
-          integer dimension(nb,12),intent(in),depend(nb) :: ngbid
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: elght
           real(kind=8) dimension(nb),intent(out),depend(nb) :: be
           integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
           integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
 
       end subroutine slpBounds
 
-      subroutine setHillslopeCoeff(kd,area,ngbnb,lgth,vlgth,dcoeff,nb)
+      subroutine setHillslopeCoeff(nb,kd,dcoeff)
 
+          integer intent(in) :: nb
           real(kind=8) intent(in) :: kd
-          real(kind=8) dimension(nb),intent(in) :: area
-          integer dimension(nb),intent(in),depend(nb) :: ngbnb
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: lgth
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: vlgth
           real(kind=8) dimension(nb,13),intent(out),depend(nb) :: dcoeff
-          integer, optional,check(len(area)>=nb),depend(area) :: nb=len(area)
 
       end subroutine setHillslopeCoeff
 
-      subroutine initDiffCoeff(kds,kdm,area,ngbnb,lgth,vlgth,sc,sm,nb)
+      subroutine initDiffCoeff(nb,dt,kds,kdm,sc,sm)
 
+          integer intent(in) :: nb
+          real(kind=8) intent(in) :: dt
           real(kind=8) intent(in) :: kds
           real(kind=8) intent(in) :: kdm
           real(kind=8) dimension(nb),intent(in) :: area
@@ -124,34 +115,40 @@ python module _fortran ! in
           real(kind=8) dimension(nb,12),intent(in),depend(nb) :: vlgth
           real(kind=8) dimension(nb,12),intent(out),depend(nb) :: sc
           real(kind=8) dimension(nb,12),intent(out),depend(nb) :: sm
-          integer, optional,check(len(area)>=nb),depend(area) :: nb=len(area)
 
       end subroutine initDiffCoeff
 
-      subroutine setKdMat(sealvl,inids,elev,perc,cldi,cmdi,ngbnb,ngbid,edgelgt,coeff,nb)
+      subroutine getMaxEro(sealvl,inids,elev,elev0,cldi,cmdi,cero,nb)
 
           real(kind=8) intent(in) :: sealvl
           integer dimension(nb),intent(in) :: inids
           real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: perc
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
           real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cldi
           real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cmdi
-          integer dimension(nb),intent(in),depend(nb) :: ngbnb
-          integer dimension(nb,12),intent(in),depend(nb) :: ngbid
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: edgelgt
-          real(kind=8) dimension(nb,13),intent(out),depend(nb) :: coeff
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: cero
           integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
 
-      end subroutine setKdMat
+      end subroutine getMaxEro
 
-      subroutine MFDreceivers(nrcv,inids,elev,ngbnb,ngbid,edgelgt,rcv,slope,dist,wgt,nb)
+      subroutine getDiffElev(sealvl,inids,elev,cero,cldi,cmdi,dh,nb)
+
+          real(kind=8) intent(in) :: sealvl
+          integer dimension(nb),intent(in) :: inids
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: cero
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cldi
+          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cmdi
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: dh
+          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine getDiffElev
+
+      subroutine MFDreceivers(nrcv,inids,elev,rcv,slope,dist,wgt,nb)
 
           integer intent(in) :: nrcv
           integer dimension(nb),intent(in) :: inids
           real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          integer dimension(nb),intent(in),depend(nb) :: ngbnb
-          integer dimension(nb,12),intent(in),depend(nb) :: ngbid
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: edgelgt
           integer dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: rcv
           real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: slope
           real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: dist
@@ -160,12 +157,13 @@ python module _fortran ! in
 
       end subroutine MFDreceivers
 
-      subroutine defineTIN(coords,cells_nodes,cells_edges,edges_nodes,circumcenter,ngbnb,ngbid,edgelgt,vorodist,n,nb,m)
+      subroutine defineTIN(coords,cells_nodes,cells_edges,edges_nodes,area,circumcenter,ngbnb,ngbid,edgelgt,vorodist,n,nb,m)
 
           real(kind=8) dimension(nb,3),intent(in) :: coords
           integer dimension(n,3),intent(in) :: cells_nodes
           integer dimension(n,3),intent(in),depend(n) :: cells_edges
           integer dimension(m,2),intent(in) :: edges_nodes
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: area
           real(kind=8) dimension(n,3),intent(in),depend(n) :: circumcenter
           integer dimension(nb),intent(out),depend(nb) :: ngbnb
           integer dimension(nb,12),intent(out),depend(nb) :: ngbid

@@ -20,6 +20,20 @@
 !! INTERNAL FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+module meshparams
+
+  implicit none
+
+  integer :: nLocal
+  integer, dimension(:,:), allocatable :: FVnID
+  integer, dimension(:), allocatable :: FVnNb
+
+  real( kind=8 ), dimension(:), allocatable :: FVarea
+  real( kind=8 ), dimension(:,:), allocatable :: FVeLgt
+  real( kind=8 ), dimension(:,:), allocatable :: FVvDist
+
+end module meshparams
+
 subroutine euclid( p1, p2, norm)
 !*****************************************************************************
 ! Computes the Euclidean vector norm between 2 points
@@ -118,40 +132,6 @@ subroutine split(array, low, high, mid, indices)
   indices(right) = ipivot
 
 end subroutine split
-
-subroutine halfVal(perc1,perc2,elev1,elev2,val)
-!*****************************************************************************
-
-  real(kind=8), intent(in) :: perc1,perc2
-  real(kind=8), intent(in) :: elev1,elev2
-  real( kind=8 ), intent(out) :: val
-
-  if(perc1==0. .and. perc2==0.)then
-    val = 0.
-    return
-  endif
-  if(perc1>0. .and. perc2>0.)then
-    val = (perc1+perc2)*0.5
-    return
-  endif
-  if(perc1>0. .and. perc2==0.)then
-    if(elev1>elev2)then
-        val = perc1*0.5
-    else
-      val = 0.
-    endif
-    return
-  endif
-  if(perc1==0. .and. perc2>0.)then
-    if(elev1>elev2)then
-        val = 0.
-    else
-      val = perc2*0.5
-    endif
-    return
-  endif
-
-end subroutine halfVal
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! PIT FILLING RELATED FUNCTIONS !!
@@ -325,19 +305,17 @@ end subroutine fillDepression
 !! BOUNDARY CONDITION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine meanSlope(elev, bID, gbounds, ngbNb, ngbID, elght, bslp, nb, b)
+subroutine meanSlope(elev, bID, gbounds, bslp, nb, b)
 !*****************************************************************************
 ! Define average slope along boundary edges
 
+    use meshparams
     implicit none
 
     integer :: b,nb
     integer, intent(in) :: bID(b)
-    integer, intent(in) :: ngbNb(nb)
     integer, intent(in) :: gbounds(nb)
-    integer, intent(in) :: ngbID(nb,12)
     real( kind=8 ), intent(in) :: elev(nb)
-    real( kind=8 ), intent(in) :: elght(nb,12)
 
     real( kind=8 ), intent(out) :: bslp(nb)
 
@@ -350,10 +328,10 @@ subroutine meanSlope(elev, bID, gbounds, ngbNb, ngbID, elght, bslp, nb, b)
       n = bID(k)+1
       smean = 0.
       kk = 0
-      do p = 1, ngbNb(n)
-        nn = ngbID(n,p)+1
-        if(gbounds(nn)==0 .and. elght(n,p)>0)then
-          smean = smean+(elev(n)-elev(nn))/elght(n,p)
+      do p = 1, FVnNb(n)
+        nn = FVnID(n,p)+1
+        if(gbounds(nn)==0 .and. FVeLgt(n,p)>0)then
+          smean = smean+(elev(n)-elev(nn))/FVeLgt(n,p)
           kk = kk+1
         endif
       enddo
@@ -364,17 +342,16 @@ subroutine meanSlope(elev, bID, gbounds, ngbNb, ngbID, elght, bslp, nb, b)
 
 end subroutine meanSlope
 
-subroutine flatBounds(elev, bID, gbounds, ngbNb, ngbID, be, nb, b)
+subroutine flatBounds(elev, bID, gbounds, be, nb, b)
 !*****************************************************************************
 ! Define flat boundary conditions
 
+    use meshparams
     implicit none
 
     integer :: b,nb
     integer, intent(in) :: bID(b)
-    integer, intent(in) :: ngbNb(nb)
     integer, intent(in) :: gbounds(nb)
-    integer, intent(in) :: ngbID(nb,12)
     real( kind=8 ), intent(in) :: elev(nb)
 
     real( kind=8 ), intent(out) :: be(nb)
@@ -387,8 +364,8 @@ subroutine flatBounds(elev, bID, gbounds, ngbNb, ngbID, be, nb, b)
       n = bID(k)+1
       esum = 0.
       kk = 0
-      do p = 1, ngbNb(n)
-        nn = ngbID(n,p)+1
+      do p = 1, FVnNb(n)
+        nn = FVnID(n,p)+1
         if(gbounds(nn)==0)then
           esum = esum+elev(nn)
           kk = kk + 1
@@ -401,20 +378,18 @@ subroutine flatBounds(elev, bID, gbounds, ngbNb, ngbID, be, nb, b)
 
 end subroutine flatBounds
 
-subroutine slpBounds(elev, bslp, bID, gbounds, ngbNb, ngbID, elght, be, nb, b)
+subroutine slpBounds(elev, bslp, bID, gbounds, be, nb, b)
 !*****************************************************************************
 ! Define slope boundary conditions
 
+    use meshparams
     implicit none
 
     integer :: b,nb
     integer, intent(in) :: bID(b)
-    integer, intent(in) :: ngbNb(nb)
     integer, intent(in) :: gbounds(nb)
-    integer, intent(in) :: ngbID(nb,12)
     real( kind=8 ), intent(in) :: elev(nb)
     real( kind=8 ), intent(in) :: bslp(nb)
-    real( kind=8 ), intent(in) :: elght(nb,12)
 
     real( kind=8 ), intent(out) :: be(nb)
 
@@ -427,11 +402,11 @@ subroutine slpBounds(elev, bslp, bID, gbounds, ngbNb, ngbID, elght, be, nb, b)
       kk = 0
       v1 = 0.
       v2 = 0.
-      do p = 1, ngbNb(n)
-        nn = ngbID(n,p)+1
-        if(gbounds(nn)==0.and.elght(n,p)>0.)then
-          v1 = v1+elev(nn)/elght(n,p)
-          v2 = v2+1./elght(n,p)
+      do p = 1, FVnNb(n)
+        nn = FVnID(n,p)+1
+        if(gbounds(nn)==0.and.FVeLgt(n,p)>0.)then
+          v1 = v1+elev(nn)/FVeLgt(n,p)
+          v2 = v2+1./FVeLgt(n,p)
           kk = kk + 1
         endif
       enddo
@@ -448,19 +423,16 @@ end subroutine slpBounds
 !! HILLSLOPE PROCESSES FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine setHillslopeCoeff(Kd, area, ngbNb, lgth, vlgth, dcoeff, nb)
+subroutine setHillslopeCoeff(nb, Kd, dcoeff)
 !*****************************************************************************
 ! Define hillslope coefficients
 
+    use meshparams
     implicit none
 
     integer :: nb
 
     real( kind=8 ), intent(in) :: Kd
-    integer, intent(in) :: ngbNb(nb)
-    real( kind=8 ), intent(in) :: area(nb)
-    real( kind=8 ), intent(in) :: lgth(nb,12)
-    real( kind=8 ), intent(in) :: vlgth(nb,12)
 
     real( kind=8 ), intent(out) :: dcoeff(nb,13)
 
@@ -470,15 +442,17 @@ subroutine setHillslopeCoeff(Kd, area, ngbNb, lgth, vlgth, dcoeff, nb)
     dcoeff = 0.
     do k = 1, nb
       s1 = 0.
-      c = Kd/area(k)
-      do p = 1, ngbNb(k)
-        if(vlgth(k,p)>0.)then
-          v = c*vlgth(k,p)/lgth(k,p)
-          s1 = s1 + v
-          dcoeff(k,p+1) = -v
-        endif
-      enddo
-      dcoeff(k,1) = 1.0 + s1
+      if(FVarea(k)>0)then
+        c = Kd/FVarea(k)
+        do p = 1, FVnNb(k)
+          if(FVvDist(k,p)>0.)then
+            v = c*FVvDist(k,p)/FVeLgt(k,p)
+            s1 = s1 + v
+            dcoeff(k,p+1) = -v
+          endif
+        enddo
+        dcoeff(k,1) = 1.0 + s1
+      endif
     enddo
 
     return
@@ -489,50 +463,59 @@ end subroutine setHillslopeCoeff
 !! SEDIMENT DIFFUSION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine initDiffCoeff(Kds, Kdm, area, ngbNb, lgth, vlgth, sC, sM, nb)
+subroutine initDiffCoeff(nb, dt, Kds, Kdm, sC, sM)
 !*****************************************************************************
 ! Initialise diffusion coefficients
 
+    use meshparams
     implicit none
 
     integer :: nb
 
+    real( kind=8 ), intent(in) :: dt
     real( kind=8 ), intent(in) :: Kds
     real( kind=8 ), intent(in) :: Kdm
-    integer, intent(in) :: ngbNb(nb)
-    real( kind=8 ), intent(in) :: area(nb)
-    real( kind=8 ), intent(in) :: lgth(nb,12)
-    real( kind=8 ), intent(in) :: vlgth(nb,12)
 
     real( kind=8 ), intent(out) :: sC(nb,12)
     real( kind=8 ), intent(out) :: sM(nb,12)
 
     integer :: k, p
-    real( kind=8 ) :: c1,c2
+    real( kind=8 ) :: c1,c2,mindt,Kdmax
 
     sC = 0.
     sM = 0.
+
+    mindt = dt
+    Kdmax = Kds
+    if(Kds<Kdm) Kdmax = Kdm
+
     do k = 1, nb
-      if(area(k)>0.)then
-        c1 = Kds/area(k)
-        c2 = Kdm/area(k)
-        do p = 1, ngbNb(k)
-          if(vlgth(k,p)>0. .and. lgth(k,p)>0.)then
-            sC(k,p) = c1*vlgth(k,p)/lgth(k,p)
-            sM(k,p) = c2*vlgth(k,p)/lgth(k,p)
+      if(FVarea(k)>0.)then
+        c1 = Kds/FVarea(k)
+        c2 = Kdm/FVarea(k)
+        do p = 1, FVnNb(k)
+          if(FVvDist(k,p)>0. .and. FVeLgt(k,p)>0.)then
+            mindt = min(mindt,FVeLgt(k,p)*FVeLgt(k,p)*0.25/Kdmax)
+            sC(k,p) = c1*FVvDist(k,p)/FVeLgt(k,p)
+            sM(k,p) = c2*FVvDist(k,p)/FVeLgt(k,p)
           endif
         enddo
       endif
     enddo
 
+    mindt = max(1.,mindt)
+    sC = sC*mindt
+    sM= sM*mindt
+
     return
 
 end subroutine initDiffCoeff
 
-subroutine setKdMat( sealvl, inIDs, elev, perc, clDi, cmDi, ngbNb, ngbID, edgeLgt, coeff, nb )
+subroutine getMaxEro( sealvl, inIDs, elev, elev0, clDi, cmDi, Cero, nb )
 !*****************************************************************************
-! Compute diffusion coefficients for sediment matrix
+! Compute maximum erosion thickness for diffusion to ensure stability
 
+  use meshparams
   implicit none
 
   integer :: nb
@@ -541,62 +524,117 @@ subroutine setKdMat( sealvl, inIDs, elev, perc, clDi, cmDi, ngbNb, ngbID, edgeLg
   real( kind=8 ), intent(in) :: cmDi(nb,12)
   real( kind=8 ), intent(in) :: clDi(nb,12)
   real( kind=8 ), intent(in) :: elev(nb)
-  real( kind=8 ), intent(in) :: perc(nb)
-  integer, intent(in) :: ngbID(nb, 12)
-  integer, intent(in) :: ngbNb(nb)
-  real( kind=8 ), intent(in) :: edgeLgt(nb,12)
+  real( kind=8 ), intent(in) :: elev0(nb)
 
-  real( kind=8 ), intent(out) :: coeff(nb,13)
+  real( kind=8 ), intent(out) :: Cero(nb)
+
+  integer :: k, n, p
+  real( kind=8 ) :: kd, val0
+
+  Cero = 1.
+
+  do k = 1, nb
+    val0 = 0.
+    if(inIDs(k)>0)then
+      do p = 1, FVnNb(k)
+        n = FVnID(k,p)+1
+        kd = clDi(k,p)
+        if(n>0 .and. FVeLgt(k,p)>0.)then
+          if(elev(k)<sealvl .and. elev(n)<sealvl)then
+            kd = cmDi(k,p)
+          elseif(elev(k)>=sealvl .and. elev(n)>=sealvl)then
+            kd = clDi(k,p)
+          elseif(elev(k)<sealvl .and. elev(n)>=sealvl)then
+            kd = clDi(k,p)
+          elseif(elev(k)>=sealvl .and. elev(n)<sealvl)then
+            kd = clDi(k,p)
+          else
+            if(elev(k)>=sealvl) kd = clDi(k,p)
+            if(elev(k)<sealvl) kd = cmDi(k,p)
+          endif
+          if(elev(k)>elev(n))then
+            val0 = val0+kd*(elev(n)-elev(k))
+          endif
+        endif
+      enddo
+    endif
+    if(val0<0 .and. elev(k)>elev0(k))then
+      if(val0<elev0(k)-elev(k))then
+        Cero(k) = (elev0(k)-elev(k))/val0
+      endif
+    elseif(elev(k)==elev0(k))then
+      Cero(k) = 0.
+    endif
+  enddo
+
+end subroutine getMaxEro
+
+subroutine getDiffElev( sealvl, inIDs, elev, Cero, clDi, cmDi, dh, nb )
+!*****************************************************************************
+! Compute elevation change due to diffusion
+
+  use meshparams
+  implicit none
+
+  integer :: nb
+  real( kind=8 ), intent(in) :: sealvl
+  integer, intent(in) :: inIDs(nb)
+  real( kind=8 ), intent(in) :: cmDi(nb,12)
+  real( kind=8 ), intent(in) :: clDi(nb,12)
+  real( kind=8 ), intent(in) :: elev(nb)
+  real( kind=8 ), intent(in) :: Cero(nb)
+
+  real( kind=8 ), intent(out) :: dh(nb)
 
   integer :: k, n, p
   real( kind=8 ) :: kd, val, val0
 
-  coeff = 0.
+  dh = 0.
 
   do k = 1, nb
-    val0 = 1.
+    val0 = 0.
     if(inIDs(k)>0)then
-      do p = 1, ngbNb(k)
-        n = ngbID(k,p)+1
+      do p = 1, FVnNb(k)
+        n = FVnID(k,p)+1
         kd = clDi(k,p)
-        if(n>0 .and. edgeLgt(k,p)>0.)then
-          call halfVal(perc(k),perc(n),elev(k),elev(n),val)
-          if(val>0.)then
-            if(elev(k)<sealvl .and. elev(n)<sealvl)then
-              kd = cmDi(k,p)
-            elseif(elev(k)>=sealvl .and. elev(n)>=sealvl)then
-              kd = clDi(k,p)
-            elseif(elev(k)<sealvl .and. elev(n)>=sealvl)then
-              kd = clDi(k,p)
-            elseif(elev(k)>=sealvl .and. elev(n)<sealvl)then
-              kd = clDi(k,p)
-            else
-              if(elev(k)>=sealvl) kd = clDi(k,p)
-              if(elev(k)<sealvl) kd = cmDi(k,p)
-            endif
+        if(n>0 .and. FVeLgt(k,p)>0.)then
+          if(elev(k)<sealvl .and. elev(n)<sealvl)then
+            kd = cmDi(k,p)
+          elseif(elev(k)>=sealvl .and. elev(n)>=sealvl)then
+            kd = clDi(k,p)
+          elseif(elev(k)<sealvl .and. elev(n)>=sealvl)then
+            kd = clDi(k,p)
+          elseif(elev(k)>=sealvl .and. elev(n)<sealvl)then
+            kd = clDi(k,p)
+          else
+            if(elev(k)>=sealvl) kd = clDi(k,p)
+            if(elev(k)<sealvl) kd = cmDi(k,p)
           endif
-          coeff(k,p+1) = -kd*val
-          val0 = val0-coeff(k,p+1)
+          val = elev(n)-elev(k)
+          if(val>0.)then
+            val0 = val0+kd*val*Cero(n)
+          elseif(val<0.)then
+            val0 = val0+kd*val*Cero(k)
+          endif
         endif
       enddo
-      coeff(k,1) = val0
-    else
-      coeff(k,1) = 1.
+      dh(k) = val0
     endif
   enddo
 
   return
 
-end subroutine setKdMat
+end subroutine getDiffElev
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! FLOW DIRECTION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine MFDreceivers( nRcv, inIDs, elev, ngbNb, ngbID, edgeLgt, rcv, slope, dist, wgt, nb)
+subroutine MFDreceivers( nRcv, inIDs, elev, rcv, slope, dist, wgt, nb)
 !*****************************************************************************
 ! Compute receiver characteristics based on multiple flow direction algorithm
 
+  use meshparams
   implicit none
 
   interface
@@ -612,9 +650,6 @@ subroutine MFDreceivers( nRcv, inIDs, elev, ngbNb, ngbID, edgeLgt, rcv, slope, d
   integer, intent(in) :: nRcv
   integer, intent(in) :: inIDs(nb)
   real( kind=8 ), intent(in) :: elev(nb)
-  integer, intent(in) :: ngbID(nb, 12)
-  integer, intent(in) :: ngbNb(nb)
-  real( kind=8 ), intent(in) :: edgeLgt(nb,12)
 
   integer, intent(out) :: rcv(nb,nRcv)
   real( kind=8 ), intent(out) :: slope(nb,nRcv)
@@ -636,15 +671,15 @@ subroutine MFDreceivers( nRcv, inIDs, elev, ngbNb, ngbID, edgeLgt, rcv, slope, d
       id = 0
       val = 0.
       kk = 0
-      do p = 1, ngbNb(k)
-        n = ngbID(k,p)+1
-        if(n>0 .and. edgeLgt(k,p)>0.)then
-          val = (elev(k) - elev(n))/edgeLgt(k,p)
+      do p = 1, FVnNb(k)
+        n = FVnID(k,p)+1
+        if(n>0 .and. FVeLgt(k,p)>0.)then
+          val = (elev(k) - elev(n))/FVeLgt(k,p)
           if(val>0.)then
             kk = kk + 1
             slp(kk) = val
             id(kk) = n-1
-            dst(kk) = edgeLgt(k,p)
+            dst(kk) = FVeLgt(k,p)
           endif
         endif
       enddo
@@ -690,12 +725,13 @@ end subroutine MFDreceivers
 !! MESH DECLARATION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine defineTIN( coords, cells_nodes, cells_edges, edges_nodes, circumcenter, &
+subroutine defineTIN( coords, cells_nodes, cells_edges, edges_nodes, area, circumcenter, &
                                     ngbNb, ngbID, edgeLgt, voroDist, n, nb, m  )
 !*****************************************************************************
 ! Compute for a specific triangulation the characteristics of each node and
 ! associated voronoi for finite volume discretizations
 
+  use meshparams
   implicit none
 
   integer :: m, n, nb
@@ -704,6 +740,7 @@ subroutine defineTIN( coords, cells_nodes, cells_edges, edges_nodes, circumcente
   integer, intent(in) :: edges_nodes(m, 2)
 
   real( kind=8 ), intent(in) :: coords(nb,3)
+  real( kind=8 ), intent(in) :: area(nb)
   real( kind=8 ), intent(in) :: circumcenter(n,3)
 
   integer, intent(out) :: ngbID(nb, 12)
@@ -828,5 +865,25 @@ subroutine defineTIN( coords, cells_nodes, cells_edges, edges_nodes, circumcente
     enddo lp2
 
   enddo
+
+  ! Store mesh parameters
+  nLocal = nb
+  if(allocated(FVarea)) deallocate(FVarea)
+  if(allocated(FVnID)) deallocate(FVnID)
+  if(allocated(FVnNb)) deallocate(FVnNb)
+  if(allocated(FVeLgt)) deallocate(FVeLgt)
+  if(allocated(FVvDist)) deallocate(FVvDist)
+
+  allocate(FVarea(nLocal))
+  allocate(FVnNb(nLocal))
+  allocate(FVnID(nLocal,12))
+  allocate(FVeLgt(nLocal,12))
+  allocate(FVvDist(nLocal,12))
+
+  FVarea = area
+  FVnNb = ngbNb
+  FVnID = ngbID
+  FVeLgt = edgeLgt
+  FVvDist = voroDist
 
 end subroutine defineTIN

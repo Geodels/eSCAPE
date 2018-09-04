@@ -139,7 +139,6 @@ diffusion:
     hillslopeK: 5.e-2
     streamK: 300.
     oceanK: 100.
-    step: 50
 
 output:
     dir: 'outputDir'

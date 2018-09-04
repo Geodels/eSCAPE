@@ -101,8 +101,8 @@ class UnstMesh(object):
         # Tesselation on unstructured mesh
         t = clock()
         self.FVmesh_ngbNbs, self.FVmesh_ngbID, self.FVmesh_edgeLgt, \
-                                    self.FVmesh_voroDist = defineTIN(coords, cells_nodes,
-                                                            cells_edges, edges_nodes, cc)
+                self.FVmesh_voroDist = defineTIN(coords, cells_nodes, cells_edges,
+                                                                        edges_nodes, self.FVmesh_area, cc)
 
         if MPIrank == 0 and self.verbose:
             print('Tesselation (%0.02f seconds)'% (clock() - t))
@@ -273,23 +273,20 @@ class UnstMesh(object):
         if self.boundCond == 'slope' :
             if self.tNow == self.tStart :
                 hArray = self.hLocal.getArray()
-                bslp = meanSlope(hArray, self.idGBounds, self.gbounds, self.FVmesh_ngbNbs,
-                                                       self.FVmesh_ngbID, self.FVmesh_edgeLgt)
+                bslp = meanSlope(hArray, self.idGBounds, self.gbounds)
                 self.bSlope.setArray(bslp)
                 del bslp, hArray
             else:
                 hArray = self.hLocal.getArray()
                 bSlpe = self.bSlope.getArray()
-                bElev = slpBounds(hArray,  bSlpe, self.idGBounds, self.gbounds, self.FVmesh_ngbNbs,
-                                                        self.FVmesh_ngbID, self.FVmesh_edgeLgt)
+                bElev = slpBounds(hArray, bSlpe, self.idGBounds, self.gbounds)
                 self.hLocal.setArray(bElev)
                 del bElev, hArray, bSlpe
                 self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
 
         if self.tNow > self.tStart and self.boundCond == 'flat' :
             hArray = self.hLocal.getArray()
-            bElev = flatBounds(hArray, self.idGBounds, self.gbounds, self.FVmesh_ngbNbs,
-                                                    self.FVmesh_ngbID)
+            bElev = flatBounds(hArray, self.idGBounds, self.gbounds)
             self.hLocal.setArray(bcelev)
             del bElev, hArray
             self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)

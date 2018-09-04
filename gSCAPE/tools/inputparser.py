@@ -270,15 +270,10 @@ class ReadYaml(object):
                 self.oceanCd = hillDict['oceanK']
             except KeyError as exc:
                 self.oceanCd = 50.
-            try:
-                self.iters = hillDict['step']
-            except KeyError as exc:
-                self.iters = 50.
         except KeyError as exc:
             self.Cd = 0.
             self.streamCd = 100.
             self.oceanCd = 50.
-            self.iters = 50.
 
         return
 

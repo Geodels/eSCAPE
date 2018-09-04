@@ -28,7 +28,8 @@ import warnings;warnings.simplefilter('ignore')
 from gSCAPE._fortran import setHillslopeCoeff
 from gSCAPE._fortran import initDiffCoeff
 from gSCAPE._fortran import MFDreceivers
-from gSCAPE._fortran import setKdMat
+from gSCAPE._fortran import getMaxEro
+from gSCAPE._fortran import getDiffElev
 
 MPIrank = PETSc.COMM_WORLD.Get_rank()
 MPIsize = PETSc.COMM_WORLD.Get_size()
@@ -53,8 +54,7 @@ class SPMesh(object):
 
         # Diffusion matrix construction
         if self.Cd > 0.:
-            diffCoeffs = setHillslopeCoeff(self.Cd*self.dt,self.FVmesh_area,self.FVmesh_ngbNbs,
-                                                                 self.FVmesh_edgeLgt,self.FVmesh_voroDist)
+            diffCoeffs = setHillslopeCoeff(self.npoints,self.Cd*self.dt)
             self.Diff = self._matrix_build_diag(diffCoeffs[:,0])
 
             for k in range(0, self.maxNgbhs):
@@ -78,9 +78,8 @@ class SPMesh(object):
         self.iMat = self._matrix_build_diag(np.ones(self.npoints))
 
         # Sediment pile diffusion coefficients
-        self.streamKd, self.oceanKd = initDiffCoeff(self.streamCd*self.dt,self.oceanCd*self.dt,
-                                                                self.FVmesh_area,self.FVmesh_ngbNbs,self.FVmesh_edgeLgt,
-                                                                self.FVmesh_voroDist)
+        self.streamKd, self.oceanKd = initDiffCoeff(self.npoints,self.dt,self.streamCd,self.oceanCd)
+
         # Petsc vectors
         self.hG0 = self.hGlobal.duplicate()
         self.vecG = self.hGlobal.duplicate()
@@ -133,8 +132,7 @@ class SPMesh(object):
         t0 = clock()
         self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
         hArrayLocal = self.hLocal.getArray()
-        self.rcvID, self.slpRcv, self.distRcv, self.wghtVal = MFDreceivers(self.flowDir, self.inIDs, hArrayLocal,
-                                                                            self.FVmesh_ngbNbs,self.FVmesh_ngbID, self.FVmesh_edgeLgt)
+        self.rcvID, self.slpRcv, self.distRcv, self.wghtVal = MFDreceivers(self.flowDir, self.inIDs, hArrayLocal)
         # Account for pit regions
         self.pitID = np.where(self.slpRcv[:,0]<=0.)[0]
         self.rcvID[self.pitID,:] = np.tile(self.pitID,  (self.flowDir,1)).T
@@ -142,7 +140,7 @@ class SPMesh(object):
         self.wghtVal [self.pitID,:] = 0.
         # Account for marine regions
         self.seaID = np.where(hArrayLocal<self.sealevel)[0]
-        self.rcvID[self.seaID,:] = np.tile(self.seaID,  (self.flowDir,1)).T
+        self.rcvID[self.seaID,:] = np.tile(self.seaID,(self.flowDir,1)).T
         self.distRcv[self.seaID,:] = 0.
         self.wghtVal [self.seaID,:] = 0.
         del hArrayLocal
@@ -269,94 +267,50 @@ class SPMesh(object):
             print('Fill Pit Depression (%0.02f seconds)'% (clock() - t0))
 
         t0 = clock()
-        if self.iters > 0:
+        if self.streamCd > 0 and self.oceanCd > 0:
             self._diffuseSediment()
             if MPIrank == 0 and self.verbose:
                 print('Compute Sediment Diffusion (%0.02f seconds)'% (clock() - t0))
 
         return
 
-    def _matrix_diff_build(self, elev, perc):
-
-        diffCoeffs = setKdMat( self.sealevel, self.inIDs, elev, perc, self.oceanKd, self.oceanKd,
-                                                self.FVmesh_ngbNbs, self.FVmesh_ngbID, self.FVmesh_edgeLgt )
-
-        tDiff = self._matrix_build_diag(diffCoeffs[:,0])
-        for k in range(0, self.maxNgbhs):
-            tmpMat = self._matrix_build()
-            indptr = np.arange(0, self.npoints+1, dtype=PETSc.IntType)
-            indices = self.FVmesh_ngbID[:,k].copy()
-            data = np.zeros(self.npoints)
-            ids = np.nonzero(indices<0)
-            indices[ids] = ids
-            data = diffCoeffs[:,k+1]
-            ids = np.nonzero(data==0.)
-            indices[ids] = ids
-            tmpMat.assemblyBegin()
-            tmpMat.setValuesLocalCSR(indptr, indices.astype(PETSc.IntType), data,
-                                                            PETSc.InsertMode.INSERT_VALUES)
-            tmpMat.assemblyEnd()
-            tDiff += tmpMat
-            tmpMat.destroy()
-
-        # Get erosion values for considered time step
-        self._solve_KSP(True, tDiff, self.hOld, self.hGlobal)
-        tDiff.destroy()
-
-        return
-
-    def _diffusionTimeStep(self, hArr, pArr, hG0, hL0, addFlux, inFlux, sFlux):
+    def _diffusionTimeStep(self, hArr, hG0, hL0, sFlux):
 
         shape = hG0.shape
         for tStep in range(self.iters):
 
-            # Solve PDE for diffusion system
+            # Solve PDE for diffusion system explicitly
             self.hGlobal.copy(result=self.hOld)
-            self._matrix_diff_build(hArr, pArr)
-
-            # Check for potential unstabilities
-            tmpArr = self.hGlobal.getArray()
-            mask = (tmpArr<hG0)
-            tmpArr[mask] = hG0[mask]
+            eroCoeffs = getMaxEro( self.sealevel, self.inIDs, hArr, hL0, self.streamKd, self.oceanKd)
+            self.vLoc.setArray(eroCoeffs)
+            self.dm.localToGlobal(self.vLoc, self.vGlob, 1)
+            self.dm.globalToLocal(self.vGlob, self.vLoc, 1)
+            eroCoeffs = self.vLoc.getArray()
+            dh = getDiffElev( self.sealevel, self.inIDs, hArr, eroCoeffs, self.streamKd, self.oceanKd)
+            hArr += dh
+            self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
 
              # Remove portion of boundary deposits
             self.hGlobal.copy(result=self.vGlob)
             self.vGlob.axpy(-1.,self.hOld)
-            # self.vGlob.scale(0.9)
             tmpArr = np.zeros(shape)
             tmpArr[self.boundGIDs] = 0.
             self.vecG.setArray(tmpArr)
             self.vecG.pointwiseMult(self.vecG,self.vGlob)
             self.hGlobal.axpy(-1.,self.vecG)
 
-            # Adjust sediment fluxes
-            self.vecG.pointwiseMult(self.vecG,self.areaGlobal)
-            addFlux -= self.vecG.sum()
-
-            # Check remaining excess flux to distribute
-            self.vecG.waxpy(-1.0,self.hG0,self.hGlobal)
-            self.vecG.pointwiseMult(self.vecG,self.areaGlobal)
-            frac = addFlux/self.vecG.sum()
-            self.vecG.scale(frac)
-            self.vecG.pointwiseDivide(self.vecG,self.areaGlobal)
-            self.hGlobal.waxpy(1.0,self.vecG,self.hG0)
-
             # Update elevation vectors
             if tStep < int(self.iters*0.5)-1:
                 tmpArr = self.hGlobal.getArray()
                 tmpArr += sFlux
-                addFlux += inFlux
 
             self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
 
             # Update upper layer fraction
             hArr = self.hLocal.getArray()
-            pArr = hArr-hL0
-            pArr[pArr>1.] = 1.
-            pArr[pArr<0.] = 0.
 
         # Cleaning
-        del tmpArr
+        del eroCoeffs, tmpArr
 
         return
 
@@ -373,38 +327,34 @@ class SPMesh(object):
         vSea[self.seaID] = vSed[self.seaID]
         vSea[self.idGBounds] = 0.
         self.vLoc.setArray(vSea)
+        del vSea, vSed
 
         # Add inland sediment volume to diffuse
         self.dm.localToGlobal(self.vLoc, self.vGlob, 1)
         self.vGlob.axpy(1.,self.diffDep)
 
         # From volume to sediment thickness to distribute at each interval
-        self.vGlob.scale(2.0/float(self.iters))
-        inFlux = self.vGlob.sum()
-        addFlux = self.vGlob.sum()
         self.vGlob.pointwiseDivide(self.vGlob,self.areaGlobal)
+        self.iters = max(50,int(self.vGlob.max()[1]*2.0))
+        # self.iters = min(200,self.iters)
+        self.vGlob.scale(1.0/float(self.iters))
         sFlux = self.vGlob.getArray().copy()
-        del vSea, vSed
 
         # Prepare arrays
         self.hGlobal.setArray(hG0+sFlux)
         self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
-        hArr = self.hLocal.getArray().copy()
-        pArr = hArr-hL0
-        pArr[pArr<0.] = 0.
-        pArr[pArr>1.] = 1.
+        hArr = self.hLocal.getArray()
 
         # Nothing to diffuse...
-        if inFlux <= 0. :
-            del hArr,pArr
-            del hL0,hG0
+        if self.vGlob.sum() <= 0. :
+            del hArr,hL0,hG0
             return
 
         # Solve temporal diffusion equation
-        self._diffusionTimeStep(hArr, pArr, hG0, hL0, addFlux, inFlux, sFlux)
+        self._diffusionTimeStep(hArr, hG0, hL0, sFlux)
 
         # Cleaning
-        del pArr,hArr,sFlux
+        del hArr,sFlux
         del hG0,hL0
 
         # Update erosion/deposition local/global vectors
