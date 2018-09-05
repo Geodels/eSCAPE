@@ -30,8 +30,8 @@ def configuration(parent_package='',top_path=None):
                         include_dirs=[os.curdir],
                         libraries=[],
                         library_dirs=[],
-                        extra_f90_compile_args=['-O3'],
-                        extra_link_args = ['-shared'],
+                        extra_f90_compile_args=['-fPIC','-O3'],
+                        extra_link_args = ['-shared '],
                         runtime_library_dirs=[])
 
     return config
