@@ -78,7 +78,12 @@ class SPMesh(object):
         self.iMat = self._matrix_build_diag(np.ones(self.npoints))
 
         # Sediment pile diffusion coefficients
-        self.streamKd, self.oceanKd = initDiffCoeff(self.npoints,self.dt,self.streamCd,self.oceanCd)
+        dt = np.zeros(1,dtype=float)
+        self.streamKd, self.oceanKd, dt[0] = initDiffCoeff(self.npoints,self.dt,self.streamCd,self.oceanCd)
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, dt, op=MPI.MIN)
+        self.diffDT = dt[0]
+        self.streamKd =  self.streamKd*self.diffDT
+        self.oceanKd =  self.oceanKd*self.diffDT
 
         # Petsc vectors
         self.hG0 = self.hGlobal.duplicate()
@@ -335,8 +340,10 @@ class SPMesh(object):
 
         # From volume to sediment thickness to distribute at each interval
         self.vGlob.pointwiseDivide(self.vGlob,self.areaGlobal)
-        self.iters = max(50,int(self.vGlob.max()[1]*2.0))
-        # self.iters = min(200,self.iters)
+        self.iters = max(20,int(self.vGlob.max()[1]*2.0))
+        cumdt = self.iters*self.diffDT
+        if self.iters*self.diffDT < self.dt:
+            self.iters = int(self.dt/self.diffDT)+1
         self.vGlob.scale(1.0/float(self.iters))
         sFlux = self.vGlob.getArray().copy()
 

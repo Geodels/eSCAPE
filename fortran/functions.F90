@@ -463,7 +463,7 @@ end subroutine setHillslopeCoeff
 !! SEDIMENT DIFFUSION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine initDiffCoeff(nb, dt, Kds, Kdm, sC, sM)
+subroutine initDiffCoeff(nb, dt, Kds, Kdm, sC, sM, mindt)
 !*****************************************************************************
 ! Initialise diffusion coefficients
 
@@ -478,9 +478,10 @@ subroutine initDiffCoeff(nb, dt, Kds, Kdm, sC, sM)
 
     real( kind=8 ), intent(out) :: sC(nb,12)
     real( kind=8 ), intent(out) :: sM(nb,12)
+    real( kind=8 ), intent(out) :: mindt
 
     integer :: k, p
-    real( kind=8 ) :: c1,c2,mindt,Kdmax
+    real( kind=8 ) :: c1,c2,Kdmax
 
     sC = 0.
     sM = 0.
@@ -504,8 +505,8 @@ subroutine initDiffCoeff(nb, dt, Kds, Kdm, sC, sM)
     enddo
 
     mindt = max(1.,mindt)
-    sC = sC*mindt
-    sM= sM*mindt
+    sC = sC
+    sM= sM
 
     return
 

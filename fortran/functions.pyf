@@ -103,7 +103,7 @@ python module _fortran ! in
 
       end subroutine setHillslopeCoeff
 
-      subroutine initDiffCoeff(nb,dt,kds,kdm,sc,sm)
+      subroutine initDiffCoeff(nb,dt,kds,kdm,sc,sm,mindt)
 
           integer intent(in) :: nb
           real(kind=8) intent(in) :: dt
@@ -115,6 +115,7 @@ python module _fortran ! in
           real(kind=8) dimension(nb,12),intent(in),depend(nb) :: vlgth
           real(kind=8) dimension(nb,12),intent(out),depend(nb) :: sc
           real(kind=8) dimension(nb,12),intent(out),depend(nb) :: sm
+          real(kind=8) intent(out) :: mindt
 
       end subroutine initDiffCoeff
 
