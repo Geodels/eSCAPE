@@ -329,6 +329,7 @@ class ReadYaml(object):
 
                         mdata = meshio.read(rMap[0])
                         rainSet = mdata.point_data
+                        del mdata
                     else:
                         rainSet = self.mdata.point_data
                     try:

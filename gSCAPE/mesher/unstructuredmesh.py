@@ -338,6 +338,7 @@ class UnstMesh(object):
         self.bL.setArray(rainArea)
         self.dm.localToGlobal(self.bL, self.bG, 1)
         self.dm.globalToLocal(self.bG, self.bL, 1)
+        del rainArea
 
         return
 
@@ -364,11 +365,12 @@ class UnstMesh(object):
             if np.isnan(self.tecdata.iloc[nb,1]):
                 mdata = meshio.read(self.tecdata.iloc[nb,2])
                 tectonic = mdata.ptdata[self.tecdata.iloc[nb,3]]
-                del mdata
                 self.tectonic = tectonic[self.natural2local]*self.dt
+                del mdata,tectonic
             else:
                 tectonic = np.full(len(self.elev),self.tecdata.iloc[self.tecNb,1])
                 self.tectonic = tectonic[self.natural2local]*self.dt
+                del tectonic
                 # Assign null displacements on the domain boundaries
                 if self.boundCond == 'fixed' :
                     self.tectonic[self.idGBounds] = 0.
