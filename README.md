@@ -6,6 +6,8 @@ _Global Landscape Evolution Model_
     <img width=1000 src="https://github.com/Geodels/gSCAPE-demo/blob/master/earth/images/gscape.png" alt="gSCAPE" title="gSCAPE Earth"</img>
 </div>
 
+Additional documentation can be found on our [wiki page](https://github.com/Geodels/gSCAPE/wiki)
+
 ## Dependencies
 
 1- Scientific computing libraries:
