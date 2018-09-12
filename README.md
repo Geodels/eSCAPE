@@ -19,7 +19,7 @@ A set of examples are available in the [gSCAPE-demo](https://github.com/Geodels/
 The easiest way to get started is with the Docker container
 [https://hub.docker.com/u/geodels/](https://hub.docker.com/u/geodels/) using [Kitematic](https://docs.docker.com/kitematic/userguide/). Once **Kitematic** is installed on your computer, open it and look for **gscape-docker** via the *search* menu.
 
-If you want to install it yourself, you can follow the steps provided in the [https://github.com/Geodels/gSCAPE/wiki/Installation-on-HPC](wiki) page.
+If you want to install it yourself, you can follow the steps provided in the [wiki](https://github.com/Geodels/gSCAPE/wiki/Installation-on-HPC) page.
 
 ## The specs...
 
