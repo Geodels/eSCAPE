@@ -6,7 +6,9 @@ _Global Landscape Evolution Model_
     <img width=1000 src="https://github.com/Geodels/gSCAPE-demo/blob/master/earth/images/gscape.png" alt="gSCAPE" title="gSCAPE Earth"</img>
 </div>
 
-Additional documentation can be found on our [wiki page](https://github.com/Geodels/gSCAPE/wiki)
+To join the gSCAPE User Group on Slack, send an email request to: <a href="MAILTO:tristan.salles@sydney.edu.au?subject=gSCAPE User Group&body=Please send me an invite to join the gSCAPE User Group">Join gSCAPE User Group</a>
+
+Additional/minimal documentation can be found on our [wiki page](https://github.com/Geodels/gSCAPE/wiki)
 
 ## Dependencies
 
