@@ -270,10 +270,15 @@ class ReadYaml(object):
                 self.oceanCd = hillDict['oceanK']
             except KeyError as exc:
                 self.oceanCd = 50.
+            try:
+                self.maxIters = hillDict['maxIT']
+            except KeyError as exc:
+                self.maxIters = 500
         except KeyError as exc:
             self.Cd = 0.
             self.streamCd = 100.
             self.oceanCd = 50.
+            self.maxIters = 500
 
         return
 
@@ -329,7 +334,7 @@ class ReadYaml(object):
 
                         mdata = meshio.read(rMap[0])
                         rainSet = mdata.point_data
-                        del mdata
+                        # del mdata
                     else:
                         rainSet = self.mdata.point_data
                     try:

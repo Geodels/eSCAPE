@@ -28,6 +28,8 @@ import warnings;warnings.simplefilter('ignore')
 from gSCAPE._fortran import setHillslopeCoeff
 from gSCAPE._fortran import initDiffCoeff
 from gSCAPE._fortran import MFDreceivers
+from gSCAPE._fortran import distributeHeight
+from gSCAPE._fortran import distributeVolume
 from gSCAPE._fortran import getMaxEro
 from gSCAPE._fortran import getDiffElev
 
@@ -87,7 +89,9 @@ class SPMesh(object):
 
         # Petsc vectors
         self.hG0 = self.hGlobal.duplicate()
+        self.hL0 = self.hLocal.duplicate()
         self.vecG = self.hGlobal.duplicate()
+        self.vecL = self.hLocal.duplicate()
         self.vGlob = self.hGlobal.duplicate()
         self.vLoc = self.hLocal.duplicate()
 
@@ -236,6 +240,10 @@ class SPMesh(object):
         self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
         self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
 
+        # Update elevation locally due to aerial erosion
+        hL0 = self.hLocal.getArray().copy()
+        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+
         # Get sediment load value for given time step
         if self.rainFlag:
             # Define erosion deposition volume
@@ -244,7 +252,6 @@ class SPMesh(object):
             if self.tNow == self.tStart:
                 self._solve_KSP(False,self.WAtrans, self.stepED, self.vSed)
             else :
-                self.vSed.pointwiseDivide(self.vSed,self.areaGlobal)
                 self._solve_KSP(True,self.WAtrans, self.stepED, self.vSed)
             # Solution for sediment load
             self.WAtrans.destroy()
@@ -328,19 +335,70 @@ class SPMesh(object):
 
         # Get sediment volume in the marine environment
         vSed = self.vSedLocal.getArray().copy()
+        hL = self.hLocal.getArray().copy()
         vSea = np.zeros(vSed.shape)
         vSea[self.seaID] = vSed[self.seaID]
         vSea[self.idGBounds] = 0.
-        self.vLoc.setArray(vSea)
-        del vSea, vSed
 
         # Add inland sediment volume to diffuse
+        self.vLoc.setArray(vSea)
         self.dm.localToGlobal(self.vLoc, self.vGlob, 1)
+        splitNb = 1
         self.vGlob.axpy(1.,self.diffDep)
+        self.vGlob.scale(1./float(splitNb))
+        self.dm.globalToLocal(self.vGlob, self.vLoc, 1)
+        vSed = self.vLoc.getArray().copy()
+        inFlux = vSed.copy()
+        it2 = 0
+        while it2 < splitNb:
+            it = 0
+            while it < self.maxIters:
+                nhL,nvSed = distributeHeight(self.inIDs, self.sealevel, hL, hL0, vSed)
+                # Update local elevation globally
+                self.vecL.setArray(nhL)
+                self.dm.localToGlobal(self.vecL, self.vecG, 1)
+                self.dm.globalToLocal(self.vecG, self.vecL, 1)
+                hL = self.vecL.getArray().copy()
+                self.vecL.setArray(nvSed)
+                self.dm.localToGlobal(self.vecL, self.vecG, 1)
+                self.dm.globalToLocal(self.vecG, self.vecL, 1)
+                vSed = self.vecL.getArray().copy()
+                vSed[self.idGBounds] = 0.
+                # Update sediment to distribute
+                nvSed = distributeVolume(self.inIDs, self.sealevel, hL, hL0, vSed)
+                self.vecL.setArray(nvSed)
+                self.dm.localToGlobal(self.vecL, self.vecG, 1)
+                self.dm.globalToLocal(self.vecG, self.vecL, 1)
+                vSed = self.vecL.getArray().copy()
+                vSed[self.idGBounds] = 0.
+                self.vGlob.pointwiseDivide(self.vecG,self.areaGlobal)
+                hmax = self.vGlob.max()[1]
+                if hmax <= 0.1:
+                    break
+                it += 1
+            if it2 < splitNb-1:
+                vSed += inFlux
+            it2 += 1
+
+        vTot = np.multiply(hL-hL0,self.FVmesh_area)
+        vTot += vSed
+        self.vLoc.setArray(vTot)
+
+        # Get the height to diffuse in the aerial domain
+        nhL = hL-hL0
+        nhL[self.seaID] = 0.
+        self.vecL.setArray(nhL)
+        self.dm.localToGlobal(self.vecL, self.vecG, 1)
+        self.iters = int(self.vecG.max()[1])
+        del vTot, vSed, hL, nvSed, nhL, inFlux
 
         # From volume to sediment thickness to distribute at each interval
+        self.dm.localToGlobal(self.vLoc, self.vGlob, 1)
         self.vGlob.pointwiseDivide(self.vGlob,self.areaGlobal)
-        self.iters = max(20,int(self.vGlob.max()[1]*2.0))
+
+        # Distribute sediment downstream to speed up the diffusion algorithm
+        self.iters = max(100,int(self.iters*2.0))
+        self.iters = min(self.maxIters,self.iters)
         cumdt = self.iters*self.diffDT
         if self.iters*self.diffDT < self.dt:
             self.iters = int(self.dt/self.diffDT)+1
@@ -369,7 +427,7 @@ class SPMesh(object):
         self.cumED.axpy(1.,self.stepED)
         self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
         self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
-
+        
         return
 
     def HillSlope(self):

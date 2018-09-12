@@ -151,7 +151,6 @@ subroutine pitVolume(depLocal, pitID, pitNb, pitVol, notpitVol, m)
   real( kind=8 ), intent(out) :: notpitVol(m)
   real( kind=8 ), intent(out) :: pitVol(pitNb)
 
-
   integer :: k, c
 
   pitVol = 0.
@@ -172,7 +171,7 @@ subroutine pitVolume(depLocal, pitID, pitNb, pitVol, notpitVol, m)
 
 end subroutine pitVolume
 
-subroutine pitHeight(elev, fillZ, pitID, pitVol, pitsedVol, newZ, remain, m, nn, nb)
+subroutine pitHeight(elev, fillZ, pitID, pitVol, pitsedVol, newZ, remain, totnodes, m, nn, nb)
 !*****************************************************************************
 ! Update elevation each pit
 
@@ -187,12 +186,14 @@ subroutine pitHeight(elev, fillZ, pitID, pitVol, pitsedVol, newZ, remain, m, nn,
 
   real( kind=8 ), intent(out) :: newZ(m)
   real( kind=8 ), intent(out) :: remain(nb)
+  integer, intent(out) :: totnodes(nb)
 
   integer :: k, c
   real( kind=8 ) :: frac
 
   newZ = elev
   remain = 0.
+  totnodes = 0
 
   ! Update elevation
   do k = 1, m
@@ -201,6 +202,7 @@ subroutine pitHeight(elev, fillZ, pitID, pitVol, pitsedVol, newZ, remain, m, nn,
       if(pitsedVol(c)>=pitVol(c))then
         newZ(k) = fillZ(k)
         remain(c) = pitsedVol(c)-pitVol(c)
+        totnodes(c) = totnodes(c) + 1
       else
         if(pitVol(c)>0.)then
           frac = pitsedVol(c)/pitVol(c)
@@ -214,6 +216,36 @@ subroutine pitHeight(elev, fillZ, pitID, pitVol, pitsedVol, newZ, remain, m, nn,
   return
 
 end subroutine pitHeight
+
+subroutine addExcess(excess, pitID, addVol, m, n)
+!*****************************************************************************
+! Add excess sediment volume on pit nodes
+
+  implicit none
+
+  integer :: m, n
+  integer, intent(in) :: pitID(m)
+  real( kind=8 ), intent(in) :: excess(n)
+
+  real( kind=8 ), intent(out) :: addVol(m)
+
+  integer :: k, c
+
+  addVol = 0.
+
+  ! Update elevation
+  do k = 1, m
+    c = pitID(k)
+    if(c>0)then
+      if(excess(c)>0.)then
+        addVol(k) = excess(c)
+      endif
+    endif
+  enddo
+
+  return
+
+end subroutine addExcess
 
 subroutine spillPoints(nb,remainSed, pitData, spillPts, n, m)
 !*****************************************************************************
@@ -436,7 +468,7 @@ subroutine setHillslopeCoeff(nb, Kd, dcoeff)
 
     real( kind=8 ), intent(out) :: dcoeff(nb,13)
 
-    integer :: k, p !, n
+    integer :: k, p
     real( kind=8 ) :: s1, c, v
 
     dcoeff = 0.
@@ -626,6 +658,136 @@ subroutine getDiffElev( sealvl, inIDs, elev, Cero, clDi, cmDi, dh, nb )
   return
 
 end subroutine getDiffElev
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! DISTRIBUTE DEPOSITS                !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+subroutine distributeHeight( inIDs, sl, elev, elev0, sed, nelev, nsed, nb )
+!*****************************************************************************
+! Update elevation based on incoming sedimentary volume
+
+  use meshparams
+  implicit none
+
+  integer :: nb
+
+  integer, intent(in) :: inIDs(nb)
+  real( kind=8 ), intent(in) :: sl
+  real( kind=8 ), intent(in) :: elev(nb)
+  real( kind=8 ), intent(in) :: elev0(nb)
+  real( kind=8 ), intent(in) :: sed(nb)
+
+  real( kind=8 ), intent(out) :: nelev(nb)
+  real( kind=8 ), intent(out) :: nsed(nb)
+
+  integer :: k,p,n,nbr
+  real( kind=8 ) :: hmax,dh,dv
+
+  nelev = elev
+  nsed = sed
+  do k = 1, nb
+    if(inIDs(k)>0)then
+      ! Deposition on the local node
+      if(sed(k)>0)then
+        nbr = 0
+        hmax = 1.e8
+        if(elev0(k)<sl)  hmax = elev(k)
+        do p = 1, FVnNb(k)
+          n = FVnID(k,p)+1
+          if(elev0(k)<sl)then
+            if(elev(n)<sl .and. elev(n)>elev(k))then
+              hmax = max(elev(n)-1.e-6,hmax)
+            endif
+            if(elev(n)<elev(k)) nbr = nbr+1
+          else
+            if(elev(n)>elev(k))  hmax = min(hmax,elev(n))
+            if(elev(n)<elev(k)) nbr = nbr+1
+          endif
+        enddo
+        if(elev0(k)<sl .and. hmax==elev(k) .and. nbr == 0) hmax = hmax + 1.e-2
+        if(elev0(k)>=sl .and. hmax==elev(k) .and. nbr == 0) hmax = hmax + 1.e-1
+        if(elev0(k)<sl) hmax = min(hmax,0.9*(sl-elev(k))+elev(k))
+        if(elev(k)<hmax)then
+          dh = (hmax-elev(k))
+          dv = dh*FVarea(k)
+          if(dv>sed(k))then
+            nelev(k) = elev(k)+sed(k)/FVarea(k)
+            nsed(k) = 0.
+          else
+            nelev(k) = elev(k)+dh
+            nsed(k) = sed(k) - dv
+          endif
+        endif
+      endif
+    endif
+  enddo
+
+  return
+
+end subroutine distributeHeight
+
+subroutine distributeVolume( inIDs, sl, elev, elev0, sed, nsed, nb )
+!*****************************************************************************
+! Compute remaining volume to distribute
+
+  use meshparams
+  implicit none
+
+  integer :: nb
+
+  integer, intent(in) :: inIDs(nb)
+  real( kind=8 ), intent(in) :: sl
+  real( kind=8 ), intent(in) :: elev(nb)
+  real( kind=8 ), intent(in) :: elev0(nb)
+  real( kind=8 ), intent(in) :: sed(nb)
+
+  real( kind=8 ), intent(out) :: nsed(nb)
+
+  integer :: k,p,n,nbr,num
+  real( kind=8 ) :: prop
+
+  nsed = 0.
+  do k = 1, nb
+    if(inIDs(k)>0)then
+      if(sed(k)>0)then
+        nbr = 0
+        num = 0
+        do p = 1, FVnNb(k)
+          n = FVnID(k,p)+1
+          if(elev0(k)<sl .and. elev(n) < sl) num = num+1
+          if(elev(n)<elev(k)) nbr = nbr+1
+        enddo
+        if(nbr>0)then
+          prop = sed(k)/nbr
+          do p = 1, FVnNb(k)
+            n = FVnID(k,p)+1
+            if(elev(n)<elev(k)) nsed(n) = nsed(n) + prop
+          enddo
+        else
+          if(elev0(k)<sl .and. num>0)then
+            prop = sed(k)/(num+1)
+          else
+            nbr = FVnNb(k)+1
+            prop = sed(k)/nbr
+          endif
+          nsed(k) = nsed(k) + prop
+          do p = 1, FVnNb(k)
+            n = FVnID(k,p)+1
+            if(num>0)then
+              if(elev(n)<sl) nsed(n) = nsed(n) + prop
+            else
+              nsed(n) = nsed(n) + prop
+            endif
+          enddo
+        endif
+      endif
+    endif
+  enddo
+
+  return
+
+end subroutine distributeVolume
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! FLOW DIRECTION FUNCTIONS !!

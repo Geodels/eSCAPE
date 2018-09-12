@@ -119,6 +119,9 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
                 # Compute Hillslope Diffusion Law
                 _SPMesh.HillSlope(self)
 
+                # Update Tectonic, Sea-level & Climatic conditions
+                _UnstMesh.applyForces(self)
+
                 # Output time step
                 if self.tNow >= self.saveTime:
                     _WriteMesh.outputMesh(self, remesh=False)
@@ -126,9 +129,6 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
 
                 # Advance time
                 self.tNow += self.dt
-
-                # Update Tectonic, Sea-level & Climatic conditions
-                _UnstMesh.applyForces(self)
 
                 if MPIrank == 0:
                     print('--- Computational Step (%0.02f seconds)'% (clock() - tstep))

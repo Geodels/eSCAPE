@@ -19,7 +19,7 @@ python module _fortran ! in
 
       end subroutine pitVolume
 
-      subroutine pitHeight(elev,fillz,pitid,pitvol,pitsedvol,newz,remain,m,nn,nb)
+      subroutine pitHeight(elev,fillz,pitid,pitvol,pitsedvol,newz,remain,totnodes,m,nn,nb)
 
           real(kind=8) dimension(m),intent(in) :: elev
           real(kind=8) dimension(m),intent(in),depend(m) :: fillz
@@ -28,11 +28,22 @@ python module _fortran ! in
           real(kind=8) dimension(nb),intent(in) :: pitsedvol
           real(kind=8) dimension(m),intent(out),depend(m) :: newz
           real(kind=8) dimension(nb),intent(out),depend(nb) :: remain
+          integer dimension(nb),intent(out),depend(nb) :: totnodes
           integer, optional,check(len(elev)>=m),depend(elev) :: m=len(elev)
           integer, optional,check(len(pitvol)>=nn),depend(pitvol) :: nn=len(pitvol)
           integer, optional,check(len(pitsedvol)>=nb),depend(pitsedvol) :: nb=len(pitsedvol)
 
       end subroutine pitHeight
+
+      subroutine addExcess(excess,pitid,addvol,m,n)
+
+          real(kind=8) dimension(n),intent(in) :: excess
+          integer dimension(m),intent(in) :: pitid
+          real(kind=8) dimension(m),intent(out),depend(m) :: addvol
+          integer, optional,check(len(excess)>=n),depend(excess) :: n=len(excess)
+          integer, optional,check(len(pitid)>=m),depend(pitid) :: m=len(pitid)
+
+      end subroutine addExcess
 
       subroutine spillPoints(nb,remainsed,pitdata,spillpts,n,m)
 
@@ -144,6 +155,31 @@ python module _fortran ! in
           integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
 
       end subroutine getDiffElev
+
+      subroutine distributeHeight(inids,sl,elev,elev0,sed,nelev,nsed,nb)
+
+          integer dimension(nb),intent(in) :: inids
+          real(kind=8) intent(in) :: sl
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: sed
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: nelev
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: nsed
+          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine distributeHeight
+
+      subroutine distributeVolume(inids,sl,elev,elev0, sed,nsed,nb)
+
+          integer dimension(nb),intent(in) :: inids
+          real(kind=8) intent(in) :: sl
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: sed
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: nsed
+          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine distributeVolume
 
       subroutine MFDreceivers(nrcv,inids,elev,rcv,slope,dist,wgt,nb)
 

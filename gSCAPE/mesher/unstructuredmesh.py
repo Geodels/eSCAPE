@@ -45,6 +45,8 @@ class UnstMesh(object):
     """
     def __init__(self, filename, dim=2):
 
+        self.natural2local = None
+
         # Define mesh attributes on root processor
         t0 = clock()
         t = clock()
@@ -124,6 +126,7 @@ class UnstMesh(object):
         areaLocal.setArray(self.FVmesh_area)
         self.dm.localToGlobal(areaLocal, self.areaGlobal)
         self.dm.globalToLocal(self.areaGlobal, areaLocal)
+        self.FVmesh_Garea = self.areaGlobal.getArray().copy()
         areaLocal.destroy()
 
         self.cumED = self.hGlobal.duplicate()
@@ -147,8 +150,9 @@ class UnstMesh(object):
 
         if MPIsize > 1:
             tree = _cKDTree(coords[:,:2])
-            distances, self.natural2local = tree.query(self.lcoords[:,:2], 1)
-            del tree,distances
+            distances, nat2loc = tree.query(self.lcoords[:,:2], 1)
+            self.natural2local = nat2loc.copy()
+            del tree,distances, nat2loc
         else:
             self.natural2local = np.arange(0,self.npoints,dtype=int)
 
@@ -263,7 +267,7 @@ class UnstMesh(object):
 
         t0 = clock()
         # Sea level
-        self.sealevel = self.seafunction(self.tNow)
+        self.sealevel = self.seafunction(self.tNow+self.dt)
         # Climate
         self._updateRain()
         # Tectonic
@@ -308,7 +312,7 @@ class UnstMesh(object):
         t0 = clock()
         nb = self.rainNb
         if nb < len(self.raindata)-1 :
-            if self.raindata.iloc[nb+1,0] <= self.tNow :
+            if self.raindata.iloc[nb+1,0] <= self.tNow+self.dt :
                 nb += 1
 
         if nb > self.rainNb or nb == -1:
@@ -354,7 +358,7 @@ class UnstMesh(object):
         t0 = clock()
         nb = self.tecNb
         if nb < len(self.tecdata)-1 :
-            if self.tecdata.iloc[nb+1,0] <= self.tNow :
+            if self.tecdata.iloc[nb+1,0] <= self.tNow+self.dt :
                 nb += 1
 
         if nb > self.tecNb or nb == -1:
@@ -366,7 +370,7 @@ class UnstMesh(object):
                 mdata = meshio.read(self.tecdata.iloc[nb,2])
                 tectonic = mdata.ptdata[self.tecdata.iloc[nb,3]]
                 self.tectonic = tectonic[self.natural2local]*self.dt
-                del mdata,tectonic
+                # del mdata,tectonic
             else:
                 tectonic = np.full(len(self.elev),self.tecdata.iloc[self.tecNb,1])
                 self.tectonic = tectonic[self.natural2local]*self.dt
@@ -376,7 +380,7 @@ class UnstMesh(object):
                     self.tectonic[self.idGBounds] = 0.
 
         # Update elevation
-        if self.tNow > self.tStart:
+        if self.tNow+self.dt > self.tStart:
             localZ = self.hLocal.getArray()
             localZ += self.tectonic
             self.hLocal.setArray(localZ.reshape(-1))
@@ -453,6 +457,7 @@ class UnstMesh(object):
         self.hG0.destroy()
         self.vLoc.destroy()
         self.vecG.destroy()
+        self.vecL.destroy()
         self.vGlob.destroy()
         self.dm.destroy()
 

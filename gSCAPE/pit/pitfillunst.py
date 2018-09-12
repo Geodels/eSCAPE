@@ -29,6 +29,7 @@ import fillit as fillAlgo
 from gSCAPE._fortran import fillDepression
 from gSCAPE._fortran import pitVolume
 from gSCAPE._fortran import pitHeight
+from gSCAPE._fortran import addExcess
 from gSCAPE._fortran import spillPoints
 
 MPIrank = PETSc.COMM_WORLD.Get_rank()
@@ -300,8 +301,9 @@ class UnstPit(object):
             pitVol[self.pitData[:,2].astype(int)-1] = self.pitData[:,4]
 
         # Get the percentage that will be deposited in each depression
-        newZ,remainSed = pitHeight(elev,fillZ,pitID,pitVol,pitsedVol)
+        newZ,remainSed,pitNodes = pitHeight(elev,fillZ,pitID,pitVol,pitsedVol)
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, remainSed, op=MPI.SUM)
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, pitNodes, op=MPI.SUM)
 
         # Update elevation and cumulative erosion/deposition
         cumed += newZ-elev
@@ -313,13 +315,12 @@ class UnstPit(object):
         self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
 
         # Distribute remaining sediment that will need to be diffused
-        distID = np.where(remainSed>0.)[0]
-        spillPts = spillPoints(len(distID),remainSed,self.pitData)
-        distID = np.where(np.logical_and(spillPts[:,-1]>0.,spillPts[:,1]==MPIrank))[0]
-        spillPts = spillPts[distID,:]
+        excessSed = np.divide(remainSed, pitNodes, out=np.zeros_like(remainSed),
+                                    where=pitNodes!=0)
+        addSed = addExcess(excessSed,pitID)
 
-        # Add spill over points sediment volumes
-        diffDepLocal[spillPts[:,0].astype(int)] += spillPts[:,-1]
+        # Add excess sediment volumes on pit's nodes
+        diffDepLocal += addSed
         self.diffDepLocal.setArray(diffDepLocal)
         self.dm.localToGlobal(self.diffDepLocal, self.diffDep, 1)
         self.dm.globalToLocal(self.diffDep, self.diffDepLocal, 1)
