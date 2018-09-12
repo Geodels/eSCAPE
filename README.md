@@ -6,9 +6,37 @@ _Global Landscape Evolution Model_
     <img width=1000 src="https://github.com/Geodels/gSCAPE-demo/blob/master/earth/images/gscape.png" alt="gSCAPE" title="gSCAPE Earth"</img>
 </div>
 
+## Overview
+
+**gSCAPE** is a parallel TIN-based landscape evolution model, built to simulate topography development at various space and time scales. The model is capable of simulating hillslope processes (soil creep using **linear** diffusion), fluvial incision (**Stream Power Law**), spatially and temporally varying tectonics (vertical displacements) and climatic forces (temporal and spatial precipitation changes and/or sea-level fluctuations). 
+
+## Getting started
+
+For installation information and documentation visit our github [**wiki page**](https://github.com/Geodels/gSCAPE/wiki) which provides a quick guide on the installation dependencies.
+
+A set of examples are available in the [gSCAPE-demo](https://github.com/Geodels/gSCAPE-demo) repository.
+
+The easiest way to get started is with the Docker container
+[https://hub.docker.com/u/geodels/](https://hub.docker.com/u/geodels/) using [Kitematic](https://docs.docker.com/kitematic/userguide/). Once **Kitematic** is installed on your computer, open it and look for **gscape-docker** via the *search* menu.
+
+If you want to install it yourself, you can follow the steps provided in the [https://github.com/Geodels/gSCAPE/wiki/Installation-on-HPC](wiki) page.
+
+## The specs...
+
+The model is based on the following approaches:
+* an adaptation of the implicit, parallelizable method for calculating drainage area from [**Richardson & Perron (2014)**](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/2013WR014326),
+* the extension of the parallel priority-flood algorithm from [**Barnes (2016)**](http://www.sciencedirect.com/science/article/pii/S0169555X12004618) to unstructured mesh,
+* the methods developped in [**pyBadlands**](https://github.com/badlands-model/pyBadlands_serial) ([**Salles et al. (2018)**](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0195557)). 
+
+### Community driven
+
 To join the gSCAPE User Group on Slack, send an email request to: <a href="MAILTO:tristan.salles@sydney.edu.au?subject=gSCAPE User Group&body=Please send me an invite to join the gSCAPE User Group">Join gSCAPE User Group</a>
 
-Additional/minimal documentation can be found on our [wiki page](https://github.com/Geodels/gSCAPE/wiki)
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with this program.  If not, see <http://www.gnu.org/licenses/lgpl-3.0.en.html>.
 
 ## Dependencies
 
