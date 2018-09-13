@@ -20,7 +20,7 @@ If you want to install it yourself, you can follow the steps provided in the [wi
 ## The specs...
 
 The model is based on the following approaches:
-* an adaptation of the implicit, parallelizable method for calculating drainage area from [**Richardson & Perron (2014)**](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/2013WR014326),
+* an adaptation of the implicit, parallelizable method for calculating drainage area for both single (D8) and multiple flow direction (Dinf) from [**Richardson & Perron (2014)**](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/2013WR014326),
 * the extension of the parallel priority-flood algorithm from [**Barnes (2016)**](http://www.sciencedirect.com/science/article/pii/S0169555X12004618) to unstructured mesh,
 * the methods developped in [**pyBadlands**](https://github.com/badlands-model/pyBadlands_serial) ([**Salles et al. (2018)**](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0195557)). 
 
