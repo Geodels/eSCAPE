@@ -34,6 +34,11 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 
 You should have received a copy of the GNU Lesser General Public License along with this program.  If not, see <http://www.gnu.org/licenses/lgpl-3.0.en.html>.
 
+<div align="center">
+    <img width=1000 src="https://github.com/Geodels/eSCAPE/blob/master/images/escapezoom.jpg" alt="eSCAPE" title="eSCAPE Model"</img>
+</div>
+
+
 ## Dependencies
 
 1- Scientific computing libraries:
