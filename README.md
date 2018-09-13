@@ -1,25 +1,25 @@
-# gSCAPE
+# eSCAPE
 
-_Global Landscape Evolution Model_
+_Earth Landscape Evolution Model_
 
 <div align="center">
-    <img width=1000 src="https://github.com/Geodels/gSCAPE-demo/blob/master/earth/images/gscape.png" alt="gSCAPE" title="gSCAPE Earth"</img>
+    <img width=1000 src="https://github.com/Geodels/gSCAPE-demo/blob/master/earth/images/escape.png" alt="eSCAPE" title="eSCAPE Model"</img>
 </div>
 
 ## Overview
 
-**gSCAPE** is a parallel TIN-based landscape evolution model, built to simulate topography development at various space and time scales. The model is capable of simulating hillslope processes (soil creep using **linear** diffusion), fluvial incision (**Stream Power Law**), spatially and temporally varying tectonics (vertical displacements) and climatic forces (temporal and spatial precipitation changes and/or sea-level fluctuations). 
+**eSCAPE** is a parallel TIN-based landscape evolution model, built to simulate topography development at various space and time scales. The model is capable of simulating hillslope processes (soil creep using **linear** diffusion), fluvial incision (**Stream Power Law**), spatially and temporally varying tectonics (vertical displacements) and climatic forces (temporal and spatial precipitation changes and/or sea-level fluctuations). 
 
 ## Getting started
 
-For installation information and documentation visit our github [**wiki page**](https://github.com/Geodels/gSCAPE/wiki) which provides a quick guide on the installation dependencies.
+For installation information and documentation visit our github [**wiki page**](https://github.com/Geodels/eSCAPE/wiki) which provides a quick guide on the installation dependencies.
 
-A set of examples are available in the [gSCAPE-demo](https://github.com/Geodels/gSCAPE-demo) repository.
+A set of examples are available in the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository.
 
 The easiest way to get started is with the Docker container
-[https://hub.docker.com/u/geodels/](https://hub.docker.com/u/geodels/) using [Kitematic](https://docs.docker.com/kitematic/userguide/). Once **Kitematic** is installed on your computer, open it and look for **gscape-docker** via the *search* menu.
+[https://hub.docker.com/u/geodels/](https://hub.docker.com/u/geodels/) using [Kitematic](https://docs.docker.com/kitematic/userguide/). Once **Kitematic** is installed on your computer, open it and look for **escape-docker** via the *search* menu.
 
-If you want to install it yourself, you can follow the steps provided in the [wiki](https://github.com/Geodels/gSCAPE/wiki/Installation-on-HPC) page.
+If you want to install it yourself, you can follow the steps provided in the [wiki](https://github.com/Geodels/eSCAPE/wiki/Installation-on-HPC) page.
 
 ## The specs...
 
@@ -30,7 +30,7 @@ The model is based on the following approaches:
 
 ### Community driven
 
-To join the gSCAPE User Group on Slack, send an email request to: <a href="MAILTO:tristan.salles@sydney.edu.au?subject=gSCAPE User Group&body=Please send me an invite to join the gSCAPE User Group">Join gSCAPE User Group</a>
+To join the eSCAPE User Group on Slack, send an email request to: <a href="MAILTO:tristan.salles@sydney.edu.au?subject=gSCAPE User Group&body=Please send me an invite to join the eSCAPE User Group">Join eSCAPE User Group</a>
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
@@ -57,40 +57,40 @@ You should have received a copy of the GNU Lesser General Public License along w
 
 ### Docker
 
-To use/test **gSCAPE** quickly, it is recommended to use the `gscape-docker` image that is shipped with all the required libraries.
+To use/test **eSCAPE** quickly, it is recommended to use the `escape-docker` image that is shipped with all the required libraries.
 
 [https://hub.docker.com/u/geodels/](https://hub.docker.com/u/geodels/)
 
 ## Installation
 
-Once the libraries mentioned above have been installed, **gSCAPE** will need to be cloned and compiled using the following:
+Once the libraries mentioned above have been installed, **eSCAPE** will need to be cloned and compiled using the following:
 
 ```bash
-git clone https://github.com/Geodels/gSCAPE.git
+git clone https://github.com/Geodels/eSCAPE.git
 python setup.py install
 ```
 
-An example on how to install it on a _HPC server_ is provided in the [**wiki**](https://github.com/Geodels/gSCAPE/wiki/Installation-on-HPC) page.
+An example on how to install it on a _HPC server_ is provided in the [**wiki**](https://github.com/Geodels/eSCAPE/wiki/Installation-on-HPC) page.
 
 ## Usage
 
 Either via _jupyter notebooks_ or _python_ files.
 
 ```bash
-python run_gSCAPE.py -i input.yml -v
+python run_eSCAPE.py -i input.yml -v
 ```
 
-where the `run_gSCAPE.py` script takes one required argument the input filename and an optional verbose command (`-v`).  To run the script in parallel simply use the `mpirun` command. As an example with N processors it will look like:
+where the `run_eSCAPE.py` script takes one required argument the input filename and an optional verbose command (`-v`).  To run the script in parallel simply use the `mpirun` command. As an example with N processors it will look like:
 
 ```bash
-mpirun -np N python run_gSCAPE.py -i input.yml
+mpirun -np N python run_eSCAPE.py -i input.yml
 ```
 
-`run_gSCAPE.py` consists of a limited number of calls to **gSCAPE**
+`run_eSCAPE.py` consists of a limited number of calls to **eSCAPE**
 
 ```python
-import gSCAPE
-model = gSCAPE.LandscapeEvolutionModel(***)
+import eSCAPE
+model = eSCAPE.LandscapeEvolutionModel(***)
 model.runProcesses()
 model.destroy()
 ```
@@ -99,10 +99,10 @@ as shown below:
 
 ```python
 import argparse
-import gSCAPE as sim
+import eSCAPE as sim
 
 # Parsing command line arguments
-parser = argparse.ArgumentParser(description='This is a simple entry to run gSCAPE model.',add_help=True)
+parser = argparse.ArgumentParser(description='This is a simple entry to run eSCAPE model.',add_help=True)
 parser.add_argument('-i','--input', help='Input file name (YAML file)',required=True)
 parser.add_argument('-v','--verbose',help='True/false option for verbose', required=False,action="store_true",default=False)
 parser.add_argument('-l','--log',help='True/false option for PETSC log', required=False,action="store_true",default=False)
@@ -125,7 +125,7 @@ model.destroy()
 
 ### Input file
 
-Input files for **gSCAPE** are based on [YAML](https://circleci.com/blog/what-is-yaml-a-beginner-s-guide/) syntax.
+Input files for **eSCAPE** are based on [YAML](https://circleci.com/blog/what-is-yaml-a-beginner-s-guide/) syntax.
 
 A typical file will look like this:
 
@@ -171,6 +171,7 @@ diffusion:
     hillslopeK: 5.e-2
     streamK: 300.
     oceanK: 100.
+    maxIT: 2000
 
 output:
     dir: 'outputDir'
@@ -180,4 +181,4 @@ output:
 
 ### Tutorials
 
-To get some additional info in regards to how to use **gSCAPE** a series of examples and tutorials is provided in the docker container (`gscape-docker`) and is also available for  download from the [gSCAPE-demo](https://github.com/Geodels/gSCAPE-demo) repository.
+To get some additional info in regards to how to use **eSCAPE** a series of examples and tutorials is provided in the docker container (`gscape-docker`) and is also available for  download from the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository.
