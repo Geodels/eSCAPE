@@ -1,7 +1,3 @@
-# eSCAPE
-
-_Earth Landscape Evolution Model_
-
 <div align="center">
     <img width=1000 src="https://github.com/Geodels/eSCAPE/blob/master/images/escape.jpg" alt="eSCAPE" title="eSCAPE Model"</img>
 </div>
