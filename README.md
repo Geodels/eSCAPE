@@ -181,4 +181,4 @@ output:
 
 ### Tutorials
 
-To get some additional info in regards to how to use **eSCAPE** a series of examples and tutorials is provided in the docker container (`gscape-docker`) and is also available for  download from the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository.
+To get some additional info in regards to how to use **eSCAPE** a series of examples and tutorials is provided in the docker container (`escape-docker`) and is also available for  download from the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository.
