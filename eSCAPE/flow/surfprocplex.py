@@ -1,19 +1,19 @@
 """
 Copyright 2017-2018 Tristan Salles
 
-This file is part of gSCAPE.
+This file is part of eSCAPE.
 
-gSCAPE is free software: you can redistribute it and/or modify
+eSCAPE is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
 the Free Software Foundation, either version 3 of the License, or any later version.
 
-gSCAPE is distributed in the hope that it will be useful,
+eSCAPE is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with gSCAPE.  If not, see <http://www.gnu.org/licenses/>.
+along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np
@@ -25,13 +25,13 @@ from petsc4py import PETSc
 from time import clock
 import warnings;warnings.simplefilter('ignore')
 
-from gSCAPE._fortran import setHillslopeCoeff
-from gSCAPE._fortran import initDiffCoeff
-from gSCAPE._fortran import MFDreceivers
-from gSCAPE._fortran import distributeHeight
-from gSCAPE._fortran import distributeVolume
-from gSCAPE._fortran import getMaxEro
-from gSCAPE._fortran import getDiffElev
+from eSCAPE._fortran import setHillslopeCoeff
+from eSCAPE._fortran import initDiffCoeff
+from eSCAPE._fortran import MFDreceivers
+from eSCAPE._fortran import distributeHeight
+from eSCAPE._fortran import distributeVolume
+from eSCAPE._fortran import getMaxEro
+from eSCAPE._fortran import getDiffElev
 
 MPIrank = PETSc.COMM_WORLD.Get_rank()
 MPIsize = PETSc.COMM_WORLD.Get_size()

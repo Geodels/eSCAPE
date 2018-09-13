@@ -1,19 +1,19 @@
 """
 Copyright 2017-2018 Tristan Salles
 
-This file is part of gSCAPE.
+This file is part of eSCAPE.
 
-gSCAPE is free software: you can redistribute it and/or modify
+eSCAPE is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
 the Free Software Foundation, either version 3 of the License, or any later version.
 
-gSCAPE is distributed in the hope that it will be useful,
+eSCAPE is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with gSCAPE.  If not, see <http://www.gnu.org/licenses/>.
+along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np
@@ -27,10 +27,10 @@ import warnings;warnings.simplefilter('ignore')
 import meshio
 import meshplex
 
-from gSCAPE._fortran import defineTIN
-from gSCAPE._fortran import meanSlope
-from gSCAPE._fortran import slpBounds
-from gSCAPE._fortran import flatBounds
+from eSCAPE._fortran import defineTIN
+from eSCAPE._fortran import meanSlope
+from eSCAPE._fortran import slpBounds
+from eSCAPE._fortran import flatBounds
 
 MPIrank = PETSc.COMM_WORLD.Get_rank()
 MPIsize = PETSc.COMM_WORLD.Get_size()

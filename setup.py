@@ -21,7 +21,7 @@ def configuration(parent_package='',top_path=None):
 
     config = Configuration('', parent_package, top_path)
 
-    config.add_extension('gSCAPE._fortran',
+    config.add_extension('eSCAPE._fortran',
                         sources = ['fortran/functions.pyf',
                                      'fortran/functions.F90'],
                         depends = ['fortran/functionsmodule.h'],
@@ -39,16 +39,16 @@ def configuration(parent_package='',top_path=None):
 if __name__ == "__main__":
 
     from numpy.distutils.core import setup
-    setup(name = 'gSCAPE',
+    setup(name = 'eSCAPE',
           author            = "Tristan Salles  ",
           author_email      = "tristan.salles@sydney.edu.au",
-          url               = "https://github.com/Geodels/gSCAPE",
+          url               = "https://github.com/Geodels/eSCAPE",
           version           = "0.1",
           description       = "Scalable Parallelised Landscape Evolution Model",
           # ext_modules       = [ext],
           configuration     = configuration,
-          packages          = ['gSCAPE', 'gSCAPE.tools','gSCAPE.mesher','gSCAPE.pit','gSCAPE.flow'],
-          # package_data      = {'gSCAPE': ['Examples/data',
+          packages          = ['eSCAPE', 'eSCAPE.tools','eSCAPE.mesher','eSCAPE.pit','eSCAPE.flow'],
+          # package_data      = {'eSCAPE': ['Examples/data',
           #                                   'Examples/Notebooks/*.ipynb',
           #                                   'Examples/Python/*.py']},
           classifiers       = ['Programming Language :: Python :: 2',

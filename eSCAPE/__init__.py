@@ -1,19 +1,19 @@
 """
 Copyright 2017-2018 Tristan Salles
 
-This file is part of gSCAPE.
+This file is part of eSCAPE.
 
-gSCAPE is free software: you can redistribute it and/or modify
+eSCAPE is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
 the Free Software Foundation, either version 3 of the License, or any later version.
 
-gSCAPE is distributed in the hope that it will be useful,
+eSCAPE is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with gSCAPE.  If not, see <http://www.gnu.org/licenses/>.
+along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import petsc4py,sys
@@ -33,10 +33,10 @@ MPIrank = MPI.COMM_WORLD.Get_rank()
 
 def LandscapeEvolutionModel(filename, *args, **kwargs):
     """
-    Instantiates gSCAPE model object and performs surface processes evolution.
+    Instantiates eSCAPE model object and performs surface processes evolution.
 
     This object contains methods for the following operations:
-     - initialisation of gSCAPE mesh based on input file options.
+     - initialisation of eSCAPE mesh based on input file options.
      - computation of surface processes
      - cleaning/destruction of PETSC objects
 
@@ -86,7 +86,7 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
 
         def runProcesses(self):
             """
-            Run gSCAPE Earth surface processes.
+            Run eSCAPE Earth surface processes.
 
             This function contains methods for the following operations:
              - calculating flow accumulation
@@ -138,7 +138,7 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
         def destroy(self):
             """
             Destroy PETSc DMPlex objects and associated Petsc local/global Vectors and Matrices.
-            Safely quit gSCAPE model.
+            Safely quit eSCAPE model.
             """
 
             _UnstMesh.destroy_DMPlex(self)
