@@ -58,7 +58,7 @@ You should have received a copy of the GNU Lesser General Public License along w
 
 ### Docker
 
-To use/test **eSCAPE** quickly, it is recommended to use the `escape-docker` image that is shipped with all the required libraries.
+To use/test **eSCAPE** quickly, it is recommended to use the `Geodels escape-docker` image that is shipped with all the required libraries.
 
 [https://hub.docker.com/u/geodels/](https://hub.docker.com/u/geodels/)
 
