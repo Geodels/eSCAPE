@@ -13,7 +13,7 @@ For installation information and documentation visit our github [**wiki page**](
 A set of examples are available in the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository.
 
 The easiest way to get started is with the Docker container
-[https://hub.docker.com/u/geodels/](https://hub.docker.com/u/geodels/) using [Kitematic](https://docs.docker.com/kitematic/userguide/). Once **Kitematic** is installed on your computer, open it and look for **escape-docker** via the *search* menu.
+[https://hub.docker.com/u/geodels/](https://hub.docker.com/u/geodels/) using [Kitematic](https://docs.docker.com/kitematic/userguide/). Once **Kitematic** is installed on your computer, open it and look for **Geodels escape-docker** via the *search* menu.
 
 If you want to install it yourself, you can follow the steps provided in the [wiki](https://github.com/Geodels/eSCAPE/wiki/Installation-on-HPC) page.
 
