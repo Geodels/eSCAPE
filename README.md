@@ -4,7 +4,7 @@
 
 ## Overview
 
-**eSCAPE** is a parallel TIN-based landscape evolution model, built to simulate topography dynamic at various space and time scales. The model accounts for hillslope processes (soil creep using **linear** diffusion), fluvial incision (**stream power law**), spatially and temporally varying tectonics (vertical displacements) and climatic forces (temporal and spatial precipitation changes and/or sea-level fluctuations). 
+**eSCAPE** is a parallel TIN-based landscape evolution model, built to simulate topography dynamic at various space and time scales. The model accounts for hillslope processes (soil creep using **linear** diffusion), fluvial incision (**stream power law**), spatially and temporally varying tectonics (vertical displacements) and climatic forces (temporal and spatial precipitation changes and/or sea-level fluctuations).
 
 ## Getting started
 
@@ -22,7 +22,7 @@ If you want to install it yourself, you can follow the steps provided in the [wi
 The model is based on the following approaches:
 * an adaptation of the implicit, parallelizable method for calculating drainage area for both single (D8) and multiple flow direction (Dinf) from [**Richardson & Perron (2014)**](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/2013WR014326),
 * the extension of the parallel priority-flood algorithm from [**Barnes (2016)**](http://www.sciencedirect.com/science/article/pii/S0169555X12004618) to unstructured mesh,
-* the methods developped in [**pyBadlands**](https://github.com/badlands-model/pyBadlands_serial) ([**Salles et al. (2018)**](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0195557)). 
+* the methods developped in [**pyBadlands**](https://github.com/badlands-model/pyBadlands_serial) ([**Salles et al. (2018)**](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0195557)).
 
 ### Community driven
 
@@ -73,113 +73,6 @@ python setup.py install
 
 An example on how to install it on a _HPC server_ is provided in the [**wiki**](https://github.com/Geodels/eSCAPE/wiki/Installation-on-HPC) page.
 
-## Usage
-
-Either via _jupyter notebooks_ or _python_ files.
-
-```bash
-python run_eSCAPE.py -i input.yml -v
-```
-
-where the `run_eSCAPE.py` script takes one required argument the input filename and an optional verbose command (`-v`).  To run the script in parallel simply use the `mpirun` command. As an example with N processors it will look like:
-
-```bash
-mpirun -np N python run_eSCAPE.py -i input.yml
-```
-
-`run_eSCAPE.py` consists of a limited number of calls to **eSCAPE**
-
-```python
-import eSCAPE
-model = eSCAPE.LandscapeEvolutionModel(***)
-model.runProcesses()
-model.destroy()
-```
-
-as shown below:
-
-```python
-import argparse
-import eSCAPE as sim
-
-# Parsing command line arguments
-parser = argparse.ArgumentParser(description='This is a simple entry to run eSCAPE model.',add_help=True)
-parser.add_argument('-i','--input', help='Input file name (YAML file)',required=True)
-parser.add_argument('-v','--verbose',help='True/false option for verbose', required=False,action="store_true",default=False)
-parser.add_argument('-l','--log',help='True/false option for PETSC log', required=False,action="store_true",default=False)
-
-args = parser.parse_args()
-if args.verbose:
-  print("Input file: {}".format(args.input))
-  print(" Verbose is on? {}".format(args.verbose))
-  print(" PETSC log is on? {}".format(args.log))
-
-# Reading input file
-model = sim.LandscapeEvolutionModel(args.input,args.verbose,args.log)
-
-# Running model
-model.runProcesses()
-
-# Cleaning model
-model.destroy()
-```
-
-### Input file
-
-Input files for **eSCAPE** are based on [YAML](https://circleci.com/blog/what-is-yaml-a-beginner-s-guide/) syntax.
-
-A typical file will look like this:
-
-```YAML
-name: Description of the what is going to be done in this simulation...
-
-domain:
-    filename: ['data/inputfileparameters.vtu','Z']
-    flowdir: 1
-
-time:
-    start: 0.
-    end: 1000000.
-    tout: 1000.
-    dt: 100.
-
-sea:
-    position: 0.
-    curve: 'data/sealevel.csv'
-
-climate:
-    - start: 0.
-      uniform: 1.0
-    - start: 500000.
-      map: ['data/inputfileparameters.vtu','R']
-    - start: 500000.
-      uniform: 2.0
-
-tectonic:
-    - start: 0.
-      map: ['data/inputfileparameters.vtu','T1']
-    - start: 100000.
-      uniform: 0.
-    - start: 50000.
-      map: ['data/inputfileparameters.vtu','T2']
-
-spl:
-    m: 0.5
-    n: 1.0
-    Ke: 1.e-5
-
-diffusion:
-    hillslopeK: 5.e-2
-    streamK: 300.
-    oceanK: 100.
-    maxIT: 2000
-
-output:
-    dir: 'outputDir'
-    makedir: False
-
-```
-
-### Tutorials
+## Tutorials
 
 To get some additional info in regards to how to use **eSCAPE** a series of examples and tutorials is provided in the docker container (`escape-docker`) and is also available for  download from the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository.

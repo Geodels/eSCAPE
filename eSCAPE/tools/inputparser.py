@@ -234,13 +234,15 @@ class ReadYaml(object):
             try:
                 self.m = splDict['m']
             except KeyError as exc:
-                print("When using the Stream Power Law definition of coefficient m is required.")
-                raise ValueError('Stream Power Law: m coefficient not found.')
+                self.m = 0.5
+                # print("When using the Stream Power Law definition of coefficient m is required.")
+                # raise ValueError('Stream Power Law: m coefficient not found.')
             try:
                 self.n = splDict['n']
             except KeyError as exc:
-                print("When using the Stream Power Law definition of coefficient n is required.")
-                raise ValueError('Stream Power Law: n coefficient not found.')
+                self.n = 1.0
+                # print("When using the Stream Power Law definition of coefficient n is required.")
+                # raise ValueError('Stream Power Law: n coefficient not found.')
             try:
                 self.Ke = splDict['Ke']
             except KeyError as exc:

@@ -86,7 +86,7 @@ class UnstMesh(object):
         t = clock()
         # Define mesh characteristics
         Tmesh = meshplex.mesh_tri.MeshTri(self.lcoords, self.lcells)
-        self.FVmesh_area = Tmesh.control_volumes
+        self.FVmesh_area = np.abs(Tmesh.control_volumes)
         self.boundary, self.localboundIDs = self._get_boundary()
 
         # Voronoi and simplices declaration
