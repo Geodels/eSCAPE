@@ -32,7 +32,7 @@ The model computes flow accumulation using multiple flow direction over unstruct
 
 A set of four examples is provided ([eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo)) and illustrates the different capabilities of the code from synthetic to regional, to continental and to global scale models. The code relies on a simple input script based on YAML syntax.
 
-![Example of **eSCAPE** output showing Earth evolution in the future after 100,000 years of constant sea-level and uniform precipitation.](https://github.com/Geodels/eSCAPE/blob/master/images/FA.png)
+![Example of **eSCAPE** output showing Earth evolution in the future after 100,000 years of constant sea-level and uniform precipitation.](https://raw.githubusercontent.com/Geodels/eSCAPE/master/images/FA.png)
 
 The following example shows how the model is called in Python:
 
