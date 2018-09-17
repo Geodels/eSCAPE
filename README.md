@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/146602973.svg)](https://zenodo.org/badge/latestdoi/146602973)
+
 <div align="center">
     <img width=1000 src="https://github.com/Geodels/eSCAPE/blob/master/images/bg.jpg" alt="eSCAPE" title="eSCAPE Model"</img>
 </div>
