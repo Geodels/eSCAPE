@@ -19,6 +19,10 @@ The easiest way to get started is with the Docker container
 
 If you want to install it yourself, you can follow the steps provided in the [wiki](https://github.com/Geodels/eSCAPE/wiki/Installation-on-HPC) page.
 
+<div align="center">
+<img src="https://github.com/Geodels/eSCAPE-hugo/blob/master/static/images/earthdepo1.gif" width="800"/>
+</div>
+
 ## The specs...
 
 The model is based on the following approaches:
