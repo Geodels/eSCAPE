@@ -26,4 +26,6 @@ bibliography: paper.bib
 
 The model computes flow accumulation using multiple flow direction over unstructured grids based on an adaptation of the implicit approach proposed by Richardson et al. [@Richardson:2014]. An extension of the parallel priority-flood depression-filling algorithm from [@Barnes:2016] to unstructured mesh is used to simulate sedimentation in upland areas and internally drained basins. Marine sedimentation is based on a diffusion algorithm similar to the technique proposed in [pybadlands](https://github.com/badlands-model/pyBadlands_serial) [@Salles:2018].
 
+**eSCAPE** is primarily designed to look at landscape dynamics at global scale but can also be used on much smaller spatial domains. A set of four examples is provided ([eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo)) and illustrates the main capabilities of the code from synthetic to regional applications as well as continental and global simulations.
+
 # References
