@@ -12,7 +12,7 @@
 
 For installation information and documentation visit our github [**eSCAPE-model** website](https://escape-model.github.io) or the [**wiki page**](https://github.com/Geodels/eSCAPE/wiki) which provides a quick guide on the installation dependencies.
 
-API documentation is available from [eSCAPE-API](https://escape-api.github.io/index.html)
+API documentation is available from the [eSCAPE-API](https://escape-api.github.io/index.html) website.
 
 A set of examples are available in the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository.
 
