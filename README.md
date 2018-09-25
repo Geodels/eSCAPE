@@ -98,7 +98,7 @@ The code parallelisation relies on `petsc` and scalability tests are still on-go
 The diagram below illustrates the performance of **eSCAPE** on a mesh with 6M+ nodes.
 
 <div align="center">
-<img src="https://github.com/Geodels/eSCAPE-demo/blob/master/images/performance.png" width="700"/>
+<img src="https://github.com/Geodels/eSCAPE-demo/blob/master/images/performance.jpg" width="700"/>
 </div>
 
 Distribution on deposited sediments in both the marine and land regions is dependent of the main rivers positions and is happening on specific locations (river mouths, depressions). As these locations are irregularly positioned on the simulated domain it creates unbalancing issues that arise and potentially decrease overall scalability of the model with increasing number of CPUs.
