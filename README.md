@@ -81,6 +81,28 @@ python setup.py install
 
 An example on how to install it on a _HPC server_ is provided in the [**wiki**](https://github.com/Geodels/eSCAPE/wiki/Installation-on-HPC) page.
 
+### Testing the installation
+
+A `test` model is available in the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository and can be used to test your **eSCAPE** installation. It provides tow comparisons related to:
+
++ the _expected values_ that you should obtained if your installation is successful
++ runtime for both _serial_ and _parallel_ simulations
+
+This test should take less than 1 minute. An example on how to visualise **eSCAPE** outputs in [**Paraview**](https://www.paraview.org/download/) is also provided.
+
+
+### Performance
+
+The code parallelisation relies on `petsc` and scalability tests are still on-going. Our goal is to be able to run models with more than 10 millions nodes and over several hundreds of CPUs.
+
+The diagram below illustrates the performance of **eSCAPE** on a mesh with 6M+ nodes.
+
+<div align="center">
+<img src="https://github.com/Geodels/eSCAPE-demo/blob/master/images/performance.png" width="700"/>
+</div>
+
+Distribution on deposited sediments in both the marine and land regions is dependent of the main rivers positions and is happening on specific locations (river mouths, depressions). As these locations are irregularly positioned on the simulated domain it creates unbalancing issues that arise and potentially decrease overall scalability of the model with increasing number of CPUs.
+
 ## Tutorials
 
 To get some additional info in regards to how to use **eSCAPE** a series of examples and tutorials is provided in the docker container (`escape-docker`) and is also available for  download from the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository.
