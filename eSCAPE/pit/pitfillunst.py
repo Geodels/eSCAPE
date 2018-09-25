@@ -1,20 +1,20 @@
-"""
-Copyright 2017-2018 Tristan Salles
-
-This file is part of eSCAPE.
-
-eSCAPE is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or any later version.
-
-eSCAPE is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
-"""
+###
+# Copyright 2017-2018 Tristan Salles
+#
+# This file is part of eSCAPE.
+#
+# eSCAPE is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or any later version.
+#
+# eSCAPE is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
+###
 
 import numpy as np
 import pandas as pd
@@ -106,6 +106,9 @@ class UnstPit(object):
         return
 
     def _performZhouAlgo(self):
+        """
+        Perform the pit filling algorithm proposed by Zhou et al., 2016 -- (https://github.com/cageo/Zhou-2016)
+        """
 
         t0 = clock()
         fillZ = self.hLocal.getArray()
@@ -201,6 +204,9 @@ class UnstPit(object):
         return
 
     def _definePitParams(self):
+        """
+        Define mesh pit parameters
+        """
 
         t0 = clock()
 
@@ -263,6 +269,9 @@ class UnstPit(object):
         return
 
     def depressionDefinition(self):
+        """
+        Main entry point for parallel pit filling computation.
+        """
 
         self._performZhouAlgo()
 
@@ -271,6 +280,9 @@ class UnstPit(object):
         return
 
     def depositDepression(self):
+        """
+        Perform pit filling based on eroded sediment volume.
+        """
 
         if len(self.pitData) == 0:
             self.pitData = np.zeros((1,5))

@@ -7,3 +7,7 @@ build/
 *.xdmf
 *.so
 *.o
+doc/_static
+doc/_templates
+doc/_build
+doc/_autosummary

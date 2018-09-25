@@ -1,20 +1,20 @@
-"""
-Copyright 2017-2018 Tristan Salles
-
-This file is part of eSCAPE.
-
-eSCAPE is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or any later version.
-
-eSCAPE is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
-"""
+###
+# Copyright 2017-2018 Tristan Salles
+#
+# This file is part of eSCAPE.
+#
+# eSCAPE is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or any later version.
+#
+# eSCAPE is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
+###
 
 import numpy as np
 from mpi4py import MPI
@@ -43,6 +43,9 @@ bc_types = {'flat'  : 'flat',  'fixed' : 'fixed', 'slope' : 'slope'}
 class ReadYaml(object):
     """
     Parsing YAML input file
+
+    Args:
+        filename: input filename (.yml YAML file)
     """
     def __init__(self, filename):
 
@@ -77,6 +80,9 @@ class ReadYaml(object):
         return
 
     def _readDomain(self):
+        """
+        Read domain definition, boundary conditions and flow direction parameters.
+        """
 
         try:
             domainDict = self.input['domain']
@@ -128,6 +134,9 @@ class ReadYaml(object):
         return
 
     def _readTime(self):
+        """
+        Read simulation time declaration.
+        """
 
         try:
             timeDict = self.input['time']
@@ -169,6 +178,9 @@ class ReadYaml(object):
         return
 
     def _readSealevel(self):
+        """
+        Define sealevel evolution.
+        """
 
         seafile = None
         seafunction = None
@@ -228,6 +240,9 @@ class ReadYaml(object):
         return
 
     def _readSPL(self):
+        """
+        Read stream power law parameters.
+        """
 
         try:
             splDict = self.input['spl']
@@ -256,6 +271,9 @@ class ReadYaml(object):
         return
 
     def _readHillslope(self):
+        """
+        Read hillslope parameters.
+        """
 
         try:
             hillDict = self.input['diffusion']
@@ -285,6 +303,9 @@ class ReadYaml(object):
         return
 
     def _readOut(self):
+        """
+        Parse output directory.
+        """
 
         try:
             outDict = self.input['output']
@@ -303,7 +324,9 @@ class ReadYaml(object):
         return
 
     def _readRain(self):
-
+        """
+        Parse rain forcing conditions.
+        """
         try:
             rainDict = self.input['climate']
             rainSort = sorted(rainDict, key=itemgetter('start'))
@@ -378,6 +401,9 @@ class ReadYaml(object):
         return
 
     def _readTectonic(self):
+        """
+        Parse tectonic forcing conditions.
+        """
 
         try:
             tecDict = self.input['tectonic']

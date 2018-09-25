@@ -1,0 +1,4 @@
+Sphinx
+mock
+numpy
+-e ./

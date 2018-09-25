@@ -1,20 +1,20 @@
-"""
-Copyright 2017-2018 Tristan Salles
-
-This file is part of eSCAPE.
-
-eSCAPE is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or any later version.
-
-eSCAPE is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
-"""
+###
+# Copyright 2017-2018 Tristan Salles
+#
+# This file is part of eSCAPE.
+#
+# eSCAPE is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or any later version.
+#
+# eSCAPE is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
+###
 
 import numpy as np
 from mpi4py import MPI
@@ -98,7 +98,9 @@ class SPMesh(object):
         return
 
     def _matrix_build(self, nnz=(1,1)):
-
+        """
+        Define PETSC Matrix
+        """
         matrix = PETSc.Mat().create(comm=MPIcomm)
         matrix.setType('aij')
         matrix.setSizes(self.sizes)
@@ -109,6 +111,9 @@ class SPMesh(object):
         return matrix
 
     def _matrix_build_diag(self, V, nnz=(1,1)):
+        """
+        Define PETSC Diagonal Matrix
+        """
 
         matrix = self._matrix_build()
 
@@ -122,6 +127,18 @@ class SPMesh(object):
         return matrix
 
     def _solve_KSP(self, guess, matrix, vector1, vector2):
+        """
+        Set PETSC KSP solver.
+
+        Args
+            guess: Boolean specifying if the iterative KSP solver initial guess is nonzero
+            matrix: PETSC matrix used by the KSP solver
+            vector1: PETSC vector corresponding to the initial values
+            vector2: PETSC vector corresponding to the new values
+
+        Returns:
+            vector2: PETSC vector of the new values
+        """
 
         ksp = PETSc.KSP().create(PETSc.COMM_WORLD)
         if guess:
@@ -137,6 +154,9 @@ class SPMesh(object):
         return vector2
 
     def _buidFlowDirection(self):
+        """
+        Build multiple flow direction based on neighbouring slopes.
+        """
 
         t0 = clock()
         self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
@@ -160,6 +180,9 @@ class SPMesh(object):
         return
 
     def FlowAccumulation(self):
+        """
+        Compute multiple flow accumulation.
+        """
 
         self._buidFlowDirection()
 
@@ -201,6 +224,9 @@ class SPMesh(object):
         return
 
     def StreamPowerLaw(self):
+        """
+        Perform stream power law.
+        """
 
         t0 = clock()
         # Get erosion values for considered time step
@@ -270,6 +296,9 @@ class SPMesh(object):
         return
 
     def SedimentDiffusion(self):
+        """
+        Initialise sediment diffusion from pit and marine deposition.
+        """
 
         t0 = clock()
 
@@ -287,6 +316,15 @@ class SPMesh(object):
         return
 
     def _diffusionTimeStep(self, hArr, hG0, hL0, sFlux):
+        """
+        Internal loop for marine and aerial diffusion on currently deposited sediments.
+
+        Args:
+            hArr: local PETSC vector for updated elevation values
+            hG0: global PETSC vector of initial elevation values
+            hL0: local PETSC vector of initial elevation values
+            sFlux: global PETSC vector of sediment thickness remaining for diffusion
+        """
 
         shape = hG0.shape
         for tStep in range(self.iters):
@@ -327,6 +365,9 @@ class SPMesh(object):
         return
 
     def _diffuseSediment(self):
+        """
+        Entry point for marine and aerial diffusion on currently deposited sediments.
+        """
 
         # Constant local & global vectors/arrays
         self.hGlobal.copy(result=self.hG0)
@@ -427,10 +468,13 @@ class SPMesh(object):
         self.cumED.axpy(1.,self.stepED)
         self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
         self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
-        
+
         return
 
     def HillSlope(self):
+        """
+        Perform hillslope diffusion.
+        """
 
         t0 = clock()
         if self.Cd > 0.:

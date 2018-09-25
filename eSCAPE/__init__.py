@@ -1,19 +1,66 @@
+###
+# Copyright 2017-2018 Tristan Salles
+#
+# This file is part of eSCAPE.
+#
+# eSCAPE is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or any later version.
+#
+# eSCAPE is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
+###
+
 """
-Copyright 2017-2018 Tristan Salles
+**LandscapeEvolutionModel** super class is the main entry point for eSCAPE and contains an inherited class (LandscapeEvolutionModelClass) which defines the following 3 main functions:
 
-This file is part of eSCAPE.
+.. list-table::
+    :header-rows: 1
+    :widths: 10 60
+    :stub-columns: 1
+    :align: left
 
-eSCAPE is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or any later version.
+    *  -  Main functions
+       -  Summary
+    *  -  LandscapeEvolutionModel()
+       -  Instantiates eSCAPE model object and performs surface processes evolution.
+    *  -  runProcesses()
+       -  Run eSCAPE Earth surface processes.
+    *  -  destroy()
+       -  Destroy PETSc DMPlex objects and associated Petsc local/global Vectors and Matrices.
 
-eSCAPE is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
+A typical call to eSCAPE will be like this
 
-You should have received a copy of the GNU Lesser General Public License
-along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
+.. code-block:: python
+    :linenos:
+
+    import eSCAPE as sim
+
+    # Reading input file
+    model = sim.LandscapeEvolutionModel('input_globe.yml',False,False)
+
+    # Running model
+    model.runProcesses()
+
+    # Cleaning model
+    model.destroy()
+
+Submodules
+==========
+
+.. autosummary::
+    :toctree: _autosummary
+
+    mesher
+    flow
+    pit
+    tools
+
 """
 
 import petsc4py,sys
@@ -40,17 +87,15 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
      - computation of surface processes
      - cleaning/destruction of PETSC objects
 
-    Parameters
-    ----------
-     filename : YAML input file
-     verbose : True/False
-        Output option for model main functions
-    showlog : True/False
-        Output option for PETSC logging file
+    Args
+        filename : YAML input file
+        verbose : True/False
+            Output option for model main functions
+        showlog : True/False
+            Output option for PETSC logging file
 
-    Returns
-    -------
-     LandscapeEvolutionModel : object
+    Returns:
+        LandscapeEvolutionModel : object
     """
 
     class LandscapeEvolutionModelClass(_ReadYaml, _WriteMesh, _UnstMesh, _UnstPit, _SPMesh):
