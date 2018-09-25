@@ -1,3 +1,4 @@
+from numpy.distutils.core import setup, Extension
 try:
     from numpy.distutils.fcompiler import FCompiler
     def runtime_library_dir_option(self, dir):

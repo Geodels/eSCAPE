@@ -1,4 +1,5 @@
 numpy
 Sphinx
 sphinx_rtd_theme
+setuptools
 -e ./
