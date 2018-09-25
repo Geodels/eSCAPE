@@ -83,7 +83,7 @@ An example on how to install it on a _HPC server_ is provided in the [**wiki**](
 
 ### Testing the installation
 
-A `test` model is available in the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository and can be used to test your **eSCAPE** installation. It provides tow comparisons related to:
+A `test` model is available in the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository and can be used to test your **eSCAPE** installation. It provides two comparisons related to:
 
 + the _expected values_ that you should obtained if your installation is successful
 + runtime for both _serial_ and _parallel_ simulations
