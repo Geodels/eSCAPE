@@ -16,4 +16,8 @@
 # along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
 ###
 
+
+"""
+Meshing module for unstructured **eSCAPE** grid generation.
+"""
 from .unstructuredmesh import UnstMesh

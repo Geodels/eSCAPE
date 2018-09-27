@@ -16,5 +16,9 @@
 # along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
 ###
 
+
+"""
+Input/output classes for initialisation and evaluation of **eSCAPE** model.
+"""
 from .inputparser import ReadYaml
 from .outmesh import WriteMesh

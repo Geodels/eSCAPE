@@ -16,4 +16,8 @@
 # along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
 ###
 
+
+"""
+Depressions filling module for pits determination based on priority flooding algorithm.
+"""
 from .pitfillunst import UnstPit

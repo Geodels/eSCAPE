@@ -21,7 +21,7 @@
 
 .. list-table::
     :header-rows: 1
-    :widths: 10 60
+    :widths: 10 60 
     :stub-columns: 1
     :align: left
 
