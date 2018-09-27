@@ -1,0 +1,16 @@
+setuptools
+gfortran 
+python
+cython
+petsc
+numpy
+scipy
+pandas
+mpi4py
+petsc4py
+hdf5
+h5py
+ruamel.yaml
+meshio
+meshplex
+fillit
