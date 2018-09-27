@@ -10,7 +10,7 @@
 
 ## Getting started
 
-For installation information and documentation visit our github [**eSCAPE-model** website](https://escape-model.github.io) or the [**wiki page**](https://github.com/Geodels/eSCAPE/wiki) which provides a quick guide on the installation dependencies.
+For installation information and documentation visit our github [**eSCAPE-model** website](https://escape-model.github.io) or the [**wiki page**](https://github.com/Geodels/eSCAPE/wiki) which provides a quick guide on the installation dependencies and **Docker** settings.
 
 API documentation is available from the [eSCAPE-API](https://escape-api.github.io/index.html) website.
 
