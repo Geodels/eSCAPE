@@ -169,9 +169,9 @@ class SPMesh(object):
         self.wghtVal[self.pitID,:] = 0.
         # Account for marine regions
         self.seaID = np.where(hArrayLocal<self.sealevel)[0]
-        # self.rcvID[self.seaID,:] = np.tile(self.seaID,(self.flowDir,1)).T
-        # self.distRcv[self.seaID,:] = 0.
-        # self.wghtVal[self.seaID,:] = 0.
+        self.rcvID[self.seaID,:] = np.tile(self.seaID,(self.flowDir,1)).T
+        self.distRcv[self.seaID,:] = 0.
+        self.wghtVal[self.seaID,:] = 0.
         del hArrayLocal
 
     	if MPIrank == 0 and self.verbose:
@@ -261,19 +261,14 @@ class SPMesh(object):
             self._solve_KSP(True, WHMat, self.hOld, self.hGlobal)
             WHMat.destroy()
 
-        # Nullify underwater erosion
-        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
-        hL0 = self.hLocal.getArray().copy()
-        hL0[self.seaID] = self.hOldArray[self.seaID]
-        self.hLocal.setArray(hL0)
-        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
-        del hL0
-
-        # Update erosion thicknesses
         self.stepED.waxpy(-1.0,self.hOld,self.hGlobal)
         self.cumED.axpy(1.,self.stepED)
         self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
         self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+
+        # Update elevation locally due to aerial erosion
+        hL0 = self.hLocal.getArray().copy()
+        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
 
         # Get sediment load value for given time step
         if self.rainFlag:
@@ -292,8 +287,8 @@ class SPMesh(object):
         self.dm.localToGlobal(self.vSedLocal, self.vSed, 1)
 
         # Update elevation locally due to erosion
-        # self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
-        # self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
 
         if MPIrank == 0 and self.verbose:
             print('Compute Stream Power Law (%0.02f seconds)'% (clock() - t0))
@@ -323,7 +318,7 @@ class SPMesh(object):
     def _diffusionTimeStep(self, hArr, hG0, hL0, sFlux):
         """
         Internal loop for marine and aerial diffusion on currently deposited sediments.
-
+        
         Args:
             hArr: local PETSC vector for updated elevation values
             hG0: global PETSC vector of initial elevation values
