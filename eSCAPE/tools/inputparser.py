@@ -68,7 +68,7 @@ class ReadYaml(object):
         self._readDomain()
         self._readTime()
         self._readSealevel()
-        self._readSPL()
+        self._readSPM()
         self._readHillslope()
         self._readOut()
         self._readRain()
@@ -239,34 +239,49 @@ class ReadYaml(object):
 
         return
 
-    def _readSPL(self):
+    def _readSPM(self):
         """
-        Read stream power law parameters.
+        Read surface processes model parameters.
         """
 
         try:
-            splDict = self.input['spl']
+            spmDict = self.input['spm']
             try:
-                self.m = splDict['m']
+                self.m = spmDict['m']
             except KeyError as exc:
                 self.m = 0.5
                 # print("When using the Stream Power Law definition of coefficient m is required.")
                 # raise ValueError('Stream Power Law: m coefficient not found.')
             try:
-                self.n = splDict['n']
+                self.n = spmDict['n']
             except KeyError as exc:
                 self.n = 1.0
                 # print("When using the Stream Power Law definition of coefficient n is required.")
                 # raise ValueError('Stream Power Law: n coefficient not found.')
             try:
-                self.Ke = splDict['Ke']
+                self.Ke = spmDict['Ke']
             except KeyError as exc:
-                print("When using the Stream Power Law definition of coefficient Ke is required.")
-                raise ValueError('Stream Power Law: Ke coefficient not found.')
+                print("When using the Surface Process Model definition of coefficient Ke is required.")
+                raise ValueError('Surface Process Model: Ke coefficient not found.')
+            try:
+                self.vland = spmDict['vsL']
+            except KeyError as exc:
+                self.vland = 1.0
+            try:
+                self.vsea = spmDict['vsM']
+            except KeyError as exc:
+                self.vsea = 100.0
+            try:
+                self.frac_fine = spmDict['Ff']
+            except KeyError as exc:
+                self.frac_fine = 0.0
         except KeyError as exc:
             self.m = 0.5
             self.n = 1.0
             self.Ke = 0.
+            self.vland = 1.0
+            self.vsea = 5.0
+            self.frac_fine = 0.0
 
         return
 

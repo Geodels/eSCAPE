@@ -28,8 +28,6 @@ import warnings;warnings.simplefilter('ignore')
 from eSCAPE._fortran import setHillslopeCoeff
 from eSCAPE._fortran import initDiffCoeff
 from eSCAPE._fortran import MFDreceivers
-from eSCAPE._fortran import distributeHeight
-from eSCAPE._fortran import distributeVolume
 from eSCAPE._fortran import getMaxEro
 from eSCAPE._fortran import getDiffElev
 
@@ -169,9 +167,6 @@ class SPMesh(object):
         self.wghtVal[self.pitID,:] = 0.
         # Account for marine regions
         self.seaID = np.where(hArrayLocal<self.sealevel)[0]
-        self.rcvID[self.seaID,:] = np.tile(self.seaID,(self.flowDir,1)).T
-        self.distRcv[self.seaID,:] = 0.
-        self.wghtVal[self.seaID,:] = 0.
         del hArrayLocal
 
     	if MPIrank == 0 and self.verbose:
@@ -190,6 +185,7 @@ class SPMesh(object):
         # Build drainage area matrix
         if self.rainFlag:
             WAMat = self.iMat.copy()
+            WeightMat = self._matrix_build_diag(np.zeros(self.npoints))
             for k in range(0, self.flowDir):
                 tmpMat = self._matrix_build()
                 data = -self.wghtVal[:,k].copy()
@@ -200,12 +196,13 @@ class SPMesh(object):
                 tmpMat.setValuesLocalCSR(indptr, self.rcvID[:,k].astype(PETSc.IntType), data,
                                                                 PETSc.InsertMode.INSERT_VALUES)
                 tmpMat.assemblyEnd()
+                WeightMat += tmpMat
                 WAMat += tmpMat
                 tmpMat.destroy()
 
             # Solve flow accumulation
             WAtrans = WAMat.transpose()
-            self.WAtrans = WAtrans.copy()
+            self.WeightMat = WeightMat.copy()
             self.dm.localToGlobal(self.bL, self.bG, 1)
             self.dm.globalToLocal(self.bG, self.bL, 1)
             if self.tNow == self.tStart:
@@ -214,6 +211,7 @@ class SPMesh(object):
                 self._solve_KSP(True,WAtrans, self.bG, self.drainArea)
             WAMat.destroy()
             WAtrans.destroy()
+            WeightMat.destroy()
         else:
             self.drainArea.set(0.)
         self.dm.globalToLocal(self.drainArea, self.drainAreaLocal, 1)
@@ -260,35 +258,64 @@ class SPMesh(object):
             # Solve flow accumulation
             self._solve_KSP(True, WHMat, self.hOld, self.hGlobal)
             WHMat.destroy()
+            del Kcoeff
 
+        # Nullify underwater erosion
+        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+        hL0 = self.hLocal.getArray().copy()
+        hL0[self.seaID] = self.hOldArray[self.seaID]
+        self.hLocal.setArray(hL0)
+        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+
+        # Update erosion thicknesses
         self.stepED.waxpy(-1.0,self.hOld,self.hGlobal)
         self.cumED.axpy(1.,self.stepED)
         self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
         self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
 
-        # Update elevation locally due to aerial erosion
-        hL0 = self.hLocal.getArray().copy()
-        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
-
         # Get sediment load value for given time step
         if self.rainFlag:
+            Qs = self.vland*self.FVmesh_area*self.dt
+            Qs[self.seaID] = self.vsea*self.FVmesh_area[self.seaID]*self.dt
+            Qw = self.drainAreaLocal.getArray().copy()
+            Kcoeff = np.divide(Qs, Qw, out=np.zeros_like(Qw),
+                                    where=Qw!=0)
+            SLMat = self._matrix_build_diag(1.+Kcoeff)
+            SLMat += self.WeightMat
+            SLtrans = SLMat.transpose()
             # Define erosion deposition volume
-            self.stepED.scale(-1.)
+            self.stepED.scale(-(1.-self.frac_fine))
             self.stepED.pointwiseMult(self.stepED,self.areaGlobal)
             if self.tNow == self.tStart:
-                self._solve_KSP(False,self.WAtrans, self.stepED, self.vSed)
+                self._solve_KSP(False,SLtrans, self.stepED, self.vSed)
             else :
-                self._solve_KSP(True,self.WAtrans, self.stepED, self.vSed)
+                self._solve_KSP(True,SLtrans, self.stepED, self.vSed)
             # Solution for sediment load
-            self.WAtrans.destroy()
+            SLMat.destroy()
+            SLtrans.destroy()
+            del Kcoeff
         else:
             self.vSed.set(0.)
         self.dm.globalToLocal(self.vSed, self.vSedLocal, 1)
         self.dm.localToGlobal(self.vSedLocal, self.vSed, 1)
 
-        # Update elevation locally due to erosion
-        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
-        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+        # Get deposition rate
+        if self.rainFlag:
+            tmpQ = self.vSedLocal.getArray().copy()
+            Qs = self.vland*tmpQ
+            Qs[self.seaID] = self.vsea*tmpQ[self.seaID]
+            depo = np.divide(Qs, Qw, out=np.zeros_like(Qw),
+                                    where=Qw!=0)
+            # Update volume of sediment to distribute
+            Qs = np.multiply(depo*self.dt,self.FVmesh_area)
+            tmpQ[self.pitID] += Qs[self.pitID]
+            self.vSedLocal.setArray(tmpQ)
+            self.dm.localToGlobal(self.vSedLocal, self.vSed, 1)
+            self.dm.globalToLocal(self.vSed, self.vSedLocal, 1)
+            Qs[self.pitID] = 0.
+            Qs[self.idGBounds] = 0.
+            self.vLoc.setArray(Qs)
+            del hL0, Qw, Qs, depo, tmpQ
 
         if MPIrank == 0 and self.verbose:
             print('Compute Stream Power Law (%0.02f seconds)'% (clock() - t0))
@@ -308,17 +335,27 @@ class SPMesh(object):
             print('Fill Pit Depression (%0.02f seconds)'% (clock() - t0))
 
         t0 = clock()
-        if self.streamCd > 0 and self.oceanCd > 0:
+        if self.streamCd > 0 or self.oceanCd > 0:
             self._diffuseSediment()
             if MPIrank == 0 and self.verbose:
                 print('Compute Sediment Diffusion (%0.02f seconds)'% (clock() - t0))
+        else:
+            self.dm.localToGlobal(self.vLoc, self.vGlob, 1)
+            self.vGlob.axpy(1.,self.diffDep)
+            self.vGlob.pointwiseDivide(self.vGlob,self.areaGlobal)
+            self.hGlobal.axpy(1.,self.vGlob)
+            self.cumED.axpy(1.,self.vGlob)
+            self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+            self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+            self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
+            self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
 
         return
 
     def _diffusionTimeStep(self, hArr, hG0, hL0, sFlux):
         """
         Internal loop for marine and aerial diffusion on currently deposited sediments.
-        
+
         Args:
             hArr: local PETSC vector for updated elevation values
             hG0: global PETSC vector of initial elevation values
@@ -331,12 +368,12 @@ class SPMesh(object):
 
             # Solve PDE for diffusion system explicitly
             self.hGlobal.copy(result=self.hOld)
-            eroCoeffs = getMaxEro( self.sealevel, self.inIDs, hArr, hL0, self.streamKd, self.oceanKd)
+            eroCoeffs = getMaxEro(self.sealevel, self.inIDs, hArr, hL0, self.streamKd, self.oceanKd)
             self.vLoc.setArray(eroCoeffs)
             self.dm.localToGlobal(self.vLoc, self.vGlob, 1)
             self.dm.globalToLocal(self.vGlob, self.vLoc, 1)
             eroCoeffs = self.vLoc.getArray()
-            dh = getDiffElev( self.sealevel, self.inIDs, hArr, eroCoeffs, self.streamKd, self.oceanKd)
+            dh = getDiffElev(self.sealevel, self.inIDs, hArr, eroCoeffs, self.streamKd, self.oceanKd)
             hArr += dh
             self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
 
@@ -369,91 +406,38 @@ class SPMesh(object):
         Entry point for marine and aerial diffusion on currently deposited sediments.
         """
 
+        t1 = clock()
         # Constant local & global vectors/arrays
         self.hGlobal.copy(result=self.hG0)
         hG0 = self.hG0.getArray().copy()
         hL0 = self.hLocal.getArray().copy()
 
-        # Get sediment volume in the marine environment
-        vSed = self.vSedLocal.getArray().copy()
-        hL = self.hLocal.getArray().copy()
-        vSea = np.zeros(vSed.shape)
-        vSea[self.seaID] = vSed[self.seaID]
-        vSea[self.idGBounds] = 0.
-
-        # Add inland sediment volume to diffuse
-        self.vLoc.setArray(vSea)
+        # Add inland sediment volume from pits to diffuse
         self.dm.localToGlobal(self.vLoc, self.vGlob, 1)
-        splitNb = 1
         self.vGlob.axpy(1.,self.diffDep)
-        self.vGlob.scale(1./float(splitNb))
         self.dm.globalToLocal(self.vGlob, self.vLoc, 1)
-        vSed = self.vLoc.getArray().copy()
-        inFlux = vSed.copy()
-        it2 = 0
-        while it2 < splitNb:
-            it = 0
-            while it < self.maxIters:
-                nhL,nvSed = distributeHeight(self.inIDs, self.sealevel, hL, hL0, vSed)
-                # Update local elevation globally
-                self.vecL.setArray(nhL)
-                self.dm.localToGlobal(self.vecL, self.vecG, 1)
-                self.dm.globalToLocal(self.vecG, self.vecL, 1)
-                hL = self.vecL.getArray().copy()
-                self.vecL.setArray(nvSed)
-                self.dm.localToGlobal(self.vecL, self.vecG, 1)
-                self.dm.globalToLocal(self.vecG, self.vecL, 1)
-                vSed = self.vecL.getArray().copy()
-                vSed[self.idGBounds] = 0.
-                # Update sediment to distribute
-                nvSed = distributeVolume(self.inIDs, self.sealevel, hL, hL0, vSed)
-                self.vecL.setArray(nvSed)
-                self.dm.localToGlobal(self.vecL, self.vecG, 1)
-                self.dm.globalToLocal(self.vecG, self.vecL, 1)
-                vSed = self.vecL.getArray().copy()
-                vSed[self.idGBounds] = 0.
-                self.vGlob.pointwiseDivide(self.vecG,self.areaGlobal)
-                hmax = self.vGlob.max()[1]
-                if hmax <= 0.1:
-                    break
-                it += 1
-            if it2 < splitNb-1:
-                vSed += inFlux
-            it2 += 1
 
-        vTot = np.multiply(hL-hL0,self.FVmesh_area)
-        vTot += vSed
-        self.vLoc.setArray(vTot)
-
-        # Get the height to diffuse in the aerial domain
-        nhL = hL-hL0
-        nhL[self.seaID] = 0.
-        self.vecL.setArray(nhL)
-        self.dm.localToGlobal(self.vecL, self.vecG, 1)
-        self.iters = int(self.vecG.max()[1])
-        del vTot, vSed, hL, nvSed, nhL, inFlux
-
-        # From volume to sediment thickness to distribute at each interval
-        self.dm.localToGlobal(self.vLoc, self.vGlob, 1)
+        # From volume to sediment thickness
         self.vGlob.pointwiseDivide(self.vGlob,self.areaGlobal)
 
-        # Distribute sediment downstream to speed up the diffusion algorithm
-        self.iters = max(100,int(self.iters*2.0))
-        self.iters = min(self.maxIters,self.iters)
-        cumdt = self.iters*self.diffDT
+        # Get maximum diffusion iteration number
+        self.iters = int((self.vGlob.max()[1]+1.)*2.0)
+        self.iters = max(10,self.iters)
         if self.iters*self.diffDT < self.dt:
             self.iters = int(self.dt/self.diffDT)+1
-        self.vGlob.scale(1.0/float(self.iters))
-        sFlux = self.vGlob.getArray().copy()
+        self.iters = min(self.maxIters,self.iters)
 
-        # Prepare arrays
+        # Prepare diffusion arrays
+        self.vGlob.scale(2.0/float(self.iters))
+        sFlux = self.vGlob.getArray().copy()
         self.hGlobal.setArray(hG0+sFlux)
         self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
         hArr = self.hLocal.getArray()
 
         # Nothing to diffuse...
         if self.vGlob.sum() <= 0. :
-            del hArr,hL0,hG0
+            del hArr,sFlux
+            del hG0,hL0
             return
 
         # Solve temporal diffusion equation
@@ -466,8 +450,12 @@ class SPMesh(object):
         # Update erosion/deposition local/global vectors
         self.stepED.waxpy(-1.0,self.hG0,self.hGlobal)
         self.cumED.axpy(1.,self.stepED)
+        self.stepED.pointwiseMult(self.stepED,self.areaGlobal)
         self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
         self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+
+        if MPIrank == 0: # and self.verbose:
+            print('Deposited sediment diffusion (%0.02f seconds)'% (clock() - t1))
 
         return
 

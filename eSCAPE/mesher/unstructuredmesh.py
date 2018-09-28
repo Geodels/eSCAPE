@@ -303,9 +303,15 @@ class UnstMesh(object):
         if self.tNow > self.tStart and self.boundCond == 'flat' :
             hArray = self.hLocal.getArray()
             bElev = flatBounds(hArray, self.idGBounds, self.gbounds)
-            self.hLocal.setArray(bcelev)
+            self.hLocal.setArray(bElev)
             del bElev, hArray
             self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+
+        slArray = self.cumEDLocal.getArray()
+        bSL = flatBounds(slArray, self.idGBounds, self.gbounds)
+        self.cumEDLocal.setArray(bSL)
+        del bSL, slArray
+        self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
 
     	if MPIrank == 0 and self.verbose:
             print('Update External Forces (%0.02f seconds)'% (clock() - t0))

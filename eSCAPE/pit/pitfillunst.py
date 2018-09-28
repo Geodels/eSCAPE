@@ -123,13 +123,14 @@ class UnstPit(object):
             lcoords = self.lcoords
             lcoords[:,2] = fillZ
             self.zhouPit = fillAlgo.depressionFillingZhou(coords=lcoords, ngbIDs=self.FVmesh_ngbID,
-                                                                                ngbNb=self.FVmesh_ngbNbs, meshIDs=self.inIDs,
-                                                                                boundary=self.idLBounds, cartesian=False,
-                                                                                sealevel=self.sealevel, extent=self.gbounds, first=self.first)
+                                                          ngbNb=self.FVmesh_ngbNbs, meshIDs=self.inIDs,
+                                                          boundary=self.idLBounds, cartesian=False,
+                                                          sealevel=self.sealevel, extent=self.gbounds, 
+                                                          first=self.first)
             del lcoords
         else:
             self.zhouPit = fillAlgo.depressionFillingZhou(Z=fillZ, cartesian=False,
-                                                                                sealevel=self.sealevel, first=self.first)
+                                                          sealevel=self.sealevel, first=self.first)
         fillZ, locLabel, watershed, graph = self.zhouPit.performPitFillingUnstruct(simple=False)
 
         # Define globally unique watershed index

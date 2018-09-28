@@ -156,31 +156,6 @@ python module _fortran ! in
 
       end subroutine getDiffElev
 
-      subroutine distributeHeight(inids,sl,elev,elev0,sed,nelev,nsed,nb)
-
-          integer dimension(nb),intent(in) :: inids
-          real(kind=8) intent(in) :: sl
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: sed
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: nelev
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: nsed
-          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
-
-      end subroutine distributeHeight
-
-      subroutine distributeVolume(inids,sl,elev,elev0, sed,nsed,nb)
-
-          integer dimension(nb),intent(in) :: inids
-          real(kind=8) intent(in) :: sl
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: sed
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: nsed
-          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
-
-      end subroutine distributeVolume
-
       subroutine MFDreceivers(nrcv,inids,elev,rcv,slope,dist,wgt,nb)
 
           integer intent(in) :: nrcv
