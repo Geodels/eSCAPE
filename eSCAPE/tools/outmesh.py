@@ -119,6 +119,10 @@ class WriteMesh(object):
             data = self.vSedLocal.getArray()
             data[data<1.] = 1
             f["sedLoad"][:,0] = data
+            f.create_dataset('soilH',shape=(len(self.lcoords[:,0]),1), dtype='float32', compression='gzip')
+            data = self.HsoilLocal.getArray()
+            data[data<1.] = 1
+            f["soilH"][:,0] = data
             del data
 
         if MPIrank == 0:
@@ -187,6 +191,18 @@ class WriteMesh(object):
             f.write('         <Attribute Type="Scalar" Center="Node" Name="SL">\n')
             f.write('          <DataItem Format="HDF" NumberType="Float" Precision="4" ')
             f.write('Dimensions="%d 1">%s:/sedLoad</DataItem>\n'%(self.nodes[p],pfile))
+            f.write('         </Attribute>\n')
+
+            f.write('         <Attribute Type="Scalar" Center="Node" Name="Hs">\n')
+            f.write('          <DataItem Format="HDF" NumberType="Float" Precision="4" ')
+            f.write('Dimensions="%d 1">%s:/soilH</DataItem>\n'%(self.nodes[p],pfile))
+            f.write('         </Attribute>\n')
+
+            f.write('         <Attribute Type="Scalar" Center="Node" Name="sea">\n')
+            f.write('          <DataItem ItemType="Function" Function="$0 * 0.00000000001 + %f" Dimensions="%d 1">\n'%(self.sealevel,self.nodes[p]))
+            f.write('           <DataItem Format="HDF" NumberType="Float" Precision="4" ')
+            f.write('Dimensions="%d 1">%s:/erodep</DataItem>\n'%(self.nodes[p],pfile))
+            f.write('          </DataItem>\n')
             f.write('         </Attribute>\n')
 
             f.write('      </Grid>\n')

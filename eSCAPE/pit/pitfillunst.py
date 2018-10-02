@@ -125,7 +125,7 @@ class UnstPit(object):
             self.zhouPit = fillAlgo.depressionFillingZhou(coords=lcoords, ngbIDs=self.FVmesh_ngbID,
                                                           ngbNb=self.FVmesh_ngbNbs, meshIDs=self.inIDs,
                                                           boundary=self.idLBounds, cartesian=False,
-                                                          sealevel=self.sealevel, extent=self.gbounds, 
+                                                          sealevel=self.sealevel, extent=self.gbounds,
                                                           first=self.first)
             del lcoords
         else:
@@ -296,7 +296,7 @@ class UnstPit(object):
         # Find the deposited volume in each depression
         vol = self.vSedLocal.getArray()
         pitDep = np.zeros(self.npoints)
-        pitDep[self.pitID] = vol[self.pitID]
+        pitDep[self.pitID] = vol[self.pitID]*self.dt/(1.0-self.phi)
 
         # Remove deposits on the domain boundary
         pitDep[self.idGBounds] = 0.

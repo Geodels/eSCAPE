@@ -221,6 +221,163 @@ class SPMesh(object):
 
         return
 
+    def _getErosionRate(self,Hsoil):
+        """
+        Compute sediment and bedrock erosion rates.
+        """
+
+        Kcoeff = self.drainAreaLocal.getArray()
+        Kbr = np.power(Kcoeff,self.mbr)*self.Kbr
+        Ksed = np.power(Kcoeff,self.msed)*self.Ksed
+        EbedMat = self.iMat.copy()
+        EsedMat = self.iMat.copy()
+
+        # Define erosion coefficients
+        for k in range(0, self.flowDir):
+
+            indptr = np.arange(0, self.npoints+1, dtype=PETSc.IntType)
+            nodes = indptr[:-1]
+
+            # Bedrock erosion processes computation
+            if self.Kbr > 0.:
+                data = np.divide(Kbr, self.distRcv[:,k], out=np.zeros_like(Kcoeff),
+                                            where=self.distRcv[:,k]!=0)
+                tmpMat = self._matrix_build()
+                data = np.multiply(data,self.wghtVal[:,k])
+                data[self.rcvID[:,k].astype(PETSc.IntType)==nodes] = 0.0
+                tmpMat.assemblyBegin()
+                tmpMat.setValuesLocalCSR(indptr, self.rcvID[:,k].astype(PETSc.IntType), data,
+                                                                PETSc.InsertMode.INSERT_VALUES)
+                tmpMat.assemblyEnd()
+                EbedMat += tmpMat
+                Mdiag = self._matrix_build_diag(data)
+                EbedMat -= Mdiag
+                tmpMat.destroy()
+                Mdiag.destroy()
+                del data
+
+            # Sediment erosion processes computation
+            if self.Ksed > 0.:
+                data = np.divide(Ksed, self.distRcv[:,k], out=np.zeros_like(Kcoeff),
+                                            where=self.distRcv[:,k]!=0)
+                tmpMat = self._matrix_build()
+                data = np.multiply(data,self.wghtVal[:,k])
+                data[self.rcvID[:,k].astype(PETSc.IntType)==nodes] = 0.0
+                tmpMat.assemblyBegin()
+                tmpMat.setValuesLocalCSR(indptr, self.rcvID[:,k].astype(PETSc.IntType), data,
+                                                                PETSc.InsertMode.INSERT_VALUES)
+                tmpMat.assemblyEnd()
+                EsedMat += tmpMat
+                Mdiag = self._matrix_build_diag(data)
+                EsedMat -= Mdiag
+                tmpMat.destroy()
+                Mdiag.destroy()
+                del data
+
+        # Solve bedrock erosion rate
+        self._solve_KSP(True, EbedMat, self.hOld, self.vGlob)
+        EbedMat.destroy()
+        self.stepED.waxpy(-1.0,self.hOld,self.vGlob)
+        E = self.stepED.getArray().copy()
+        Ecrit = np.divide(E, self.crit_br, out=np.zeros_like(E),
+                               where=self.crit_br!=0)
+        E -= self.crit_br*(1.0-np.exp(-Ecrit))
+        E[E<0.] = 0.
+        E = np.multiply(E,np.exp(-Hsoil/self.Hstar))
+        E = np.multiply(E,1.0-self.frac_fine)
+        self.Eb.setArray(E)
+        self.dm.globalToLocal(self.Eb, self.EbLocal, 1)
+        E = self.EbLocal.getArray().copy()
+        E[self.seaID] = 0.
+        self.EbLocal.setArray(E)
+        self.dm.localToGlobal(self.EbLocal, self.Eb, 1)
+
+        # Solve sediment erosion rate
+        self._solve_KSP(True, EsedMat, self.hOld, self.vGlob)
+        EsedMat.destroy()
+        self.stepED.waxpy(-1.0,self.hOld,self.vGlob)
+        E = self.stepED.getArray().copy()
+        # self.ESed = Es.copy()
+        Ecrit = np.divide(E, self.crit_sed, out=np.zeros_like(E),
+                               where=self.crit_sed!=0)
+        E -= self.crit_sed*(1.0-np.exp(-Ecrit))
+        E[E<0.] = 0.
+        E = np.multiply(E,1.0-np.exp(-Hsoil/self.Hstar))
+        E[E*self.dt>Hsoil] = Hsoil/self.dt
+        E = np.multiply(E,1.0-self.phi)
+        self.Es.setArray(E)
+        self.dm.globalToLocal(self.Es, self.EsLocal, 1)
+        E = self.EsLocal.getArray().copy()
+        E[self.seaID] = 0.
+        self.EsLocal.setArray(E)
+        self.dm.localToGlobal(self.EsLocal, self.Es, 1)
+
+        del E, Ecrit
+        del Kcoeff, Kbr, Ksed
+
+        return
+
+    def _getSedFlux(self):
+        """
+        Compute sediment flux.
+        """
+
+        Qs = self.vland*self.FVmesh_area
+        Qs[self.seaID] = self.vsea*self.FVmesh_area[self.seaID]
+        Qw = self.drainAreaLocal.getArray().copy()
+        Kcoeff = np.divide(Qs, Qw, out=np.zeros_like(Qw), where=Qw!=0)
+        SLMat = self._matrix_build_diag(1.+Kcoeff)
+        SLMat += self.WeightMat
+        SLtrans = SLMat.transpose()
+
+        # Define erosion deposition volume
+        if self.tNow == self.tStart:
+            self._solve_KSP(False, SLtrans, self.stepED, self.vSed)
+        else :
+            self._solve_KSP(True, SLtrans, self.stepED, self.vSed)
+
+        # Solution for sediment load
+        SLMat.destroy()
+        SLtrans.destroy()
+
+        del Kcoeff, Qs
+
+        return Qw
+
+    def _getDepositionVolume(self, Qw):
+        """
+        Compute sediment deposition volume.
+        """
+
+        tmpQ = self.vSedLocal.getArray().copy()
+        Qs = self.vland*tmpQ
+        Qs[self.seaID] = self.vsea*tmpQ[self.seaID]
+        depo = np.divide(Qs, Qw, out=np.zeros_like(Qw), where=Qw!=0)
+
+        # Update volume of sediment to distribute
+        Qs = np.multiply(depo,self.FVmesh_area)
+        tmpQ[self.pitID] += Qs[self.pitID]
+        self.vSedLocal.setArray(tmpQ)
+        self.dm.localToGlobal(self.vSedLocal, self.vSed, 1)
+        self.dm.globalToLocal(self.vSed, self.vSedLocal, 1)
+
+        Qs[self.pitID] = 0.
+        Qs[self.idGBounds] = 0.
+
+        # Set marine deposition volume
+        depo = depo.fill(0.)
+        tmpQ = Qs*self.dt/(1.0-self.phi)
+        depo[self.seaID] = tmpQ[self.seaID]
+        self.vLoc.setArray(depo)
+        # self.vLoc.setArray(tmpQ)
+
+        # Set elevation change due to deposition inland
+        depo = np.divide(tmpQ, self.FVmesh_area, out=np.zeros_like(tmpQ), where=FVmesh_area!=0)
+
+        del Qw, Qs, tmpQ
+
+        return depo
+
     def StreamPowerLaw(self):
         """
         Perform stream power law.
@@ -232,91 +389,59 @@ class SPMesh(object):
         self.dm.globalToLocal(self.hOld, self.hOldLocal, 1)
         self.hOldArray = self.hOldLocal.getArray()
 
+        self.Es.set(0.0)
+        self.Eb.set(0.0)
+        Hsoil = self.Hsoil.getArray()
+
         if self.rainFlag:
-            # Define linear solver coefficients
-            Kcoeff = self.drainAreaLocal.getArray()
-            Kcoeff = -np.power(Kcoeff,self.m)*self.dt*self.Ke
-            WHMat = self.iMat.copy()
-            for k in range(0, self.flowDir):
-                # Erosion processes computation
-                data = np.divide(Kcoeff, self.distRcv[:,k], out=np.zeros_like(Kcoeff),
-                                            where=self.distRcv[:,k]!=0)
-                tmpMat = self._matrix_build()
-                data = np.multiply(data,self.wghtVal[:,k])
-                indptr = np.arange(0, self.npoints+1, dtype=PETSc.IntType)
-                nodes = indptr[:-1]
-                data[self.rcvID[:,k].astype(PETSc.IntType)==nodes] = 0.0
-                tmpMat.assemblyBegin()
-                tmpMat.setValuesLocalCSR(indptr, self.rcvID[:,k].astype(PETSc.IntType), data,
-                                                                PETSc.InsertMode.INSERT_VALUES)
-                tmpMat.assemblyEnd()
-                WHMat += tmpMat
-                Mdiag = self._matrix_build_diag(data)
-                WHMat -= Mdiag
-                tmpMat.destroy()
-                Mdiag.destroy()
-            # Solve flow accumulation
-            self._solve_KSP(True, WHMat, self.hOld, self.hGlobal)
-            WHMat.destroy()
-            del Kcoeff
+            self._getErosionRate(Hsoil)
 
-        # Nullify underwater erosion
-        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
-        hL0 = self.hLocal.getArray().copy()
-        hL0[self.seaID] = self.hOldArray[self.seaID]
-        self.hLocal.setArray(hL0)
-        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+        # Get combined erosion thicknesses for bedrock and sediments
+        self.stepED.waxpy(1.0,self.Es,self.Eb)
+        self.stepED.pointwiseMult(self.stepED,self.areaGlobal)
 
-        # Update erosion thicknesses
-        self.stepED.waxpy(-1.0,self.hOld,self.hGlobal)
-        self.cumED.axpy(1.,self.stepED)
-        self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
-        self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
-
-        # Get sediment load value for given time step
+        # Get sediment flux rate
         if self.rainFlag:
-            Qs = self.vland*self.FVmesh_area*self.dt
-            Qs[self.seaID] = self.vsea*self.FVmesh_area[self.seaID]*self.dt
-            Qw = self.drainAreaLocal.getArray().copy()
-            Kcoeff = np.divide(Qs, Qw, out=np.zeros_like(Qw),
-                                    where=Qw!=0)
-            SLMat = self._matrix_build_diag(1.+Kcoeff)
-            SLMat += self.WeightMat
-            SLtrans = SLMat.transpose()
-            # Define erosion deposition volume
-            self.stepED.scale(-(1.-self.frac_fine))
-            self.stepED.pointwiseMult(self.stepED,self.areaGlobal)
-            if self.tNow == self.tStart:
-                self._solve_KSP(False,SLtrans, self.stepED, self.vSed)
-            else :
-                self._solve_KSP(True,SLtrans, self.stepED, self.vSed)
-            # Solution for sediment load
-            SLMat.destroy()
-            SLtrans.destroy()
-            del Kcoeff
+            Qw = self._getSedFlux()
         else:
             self.vSed.set(0.)
         self.dm.globalToLocal(self.vSed, self.vSedLocal, 1)
         self.dm.localToGlobal(self.vSedLocal, self.vSed, 1)
 
-        # Get deposition rate
+        # Get deposition volume
         if self.rainFlag:
-            tmpQ = self.vSedLocal.getArray().copy()
-            Qs = self.vland*tmpQ
-            Qs[self.seaID] = self.vsea*tmpQ[self.seaID]
-            depo = np.divide(Qs, Qw, out=np.zeros_like(Qw),
-                                    where=Qw!=0)
-            # Update volume of sediment to distribute
-            Qs = np.multiply(depo*self.dt,self.FVmesh_area)
-            tmpQ[self.pitID] += Qs[self.pitID]
-            self.vSedLocal.setArray(tmpQ)
-            self.dm.localToGlobal(self.vSedLocal, self.vSed, 1)
-            self.dm.globalToLocal(self.vSed, self.vSedLocal, 1)
-            Qs[self.pitID] = 0.
-            Qs[self.idGBounds] = 0.
-            self.vLoc.setArray(Qs)
-            del hL0, Qw, Qs, depo, tmpQ
+            Ds = self._getDepositionVolume(Qw)
+        else:
+            self.vLoc.set(0.)
+            Ds = np.zeros(Hsoil.shape)
 
+        # Update sediment thicknesses due to erosion
+        Es = np.divide(self.Es.getArray(),(1.0-self.phi))
+        Es *=self.dt
+        Es[Es>Hsoil] = Hsoil
+        Es[Es<0] = Es
+        del Hsoil
+
+        # Update bedrock thicknesses due to erosion
+        Eb = np.divide(self.Eb.getArray(),(1.0-self.frac_fine))
+        Eb *=self.dt
+        Eb[Eb<0] = Eb
+
+        # Update parameters
+        self.stepED.setArray(-Es-Eb+Ds)
+        self.cumED.axpy(1.,self.stepED)
+        self.hGlobal.axpy(1.,self.stepED)
+        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+        self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
+        self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+
+        self.stepED.setArray(-Es+Ds)
+        self.Hsoil.axpy(1.,self.stepED)
+        self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
+        self.dm.localToGlobal(self.HsoilLocal, self.Hsoil, 1)
+
+        del Es, Eb, Ds
         if MPIrank == 0 and self.verbose:
             print('Compute Stream Power Law (%0.02f seconds)'% (clock() - t0))
 
@@ -450,9 +575,14 @@ class SPMesh(object):
         # Update erosion/deposition local/global vectors
         self.stepED.waxpy(-1.0,self.hG0,self.hGlobal)
         self.cumED.axpy(1.,self.stepED)
-        self.stepED.pointwiseMult(self.stepED,self.areaGlobal)
+        self.Hsoil.axpy(1.,self.stepED)
+        Hsoil = self.Hsoil.getArray().copy()
+        Hsoil[Hsoil<0.] = 0.
+        self.Hsoil.setArray(Hsoil)
+        self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
         self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
         self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+        del Hsoil
 
         if MPIrank == 0: # and self.verbose:
             print('Deposited sediment diffusion (%0.02f seconds)'% (clock() - t1))
@@ -470,13 +600,19 @@ class SPMesh(object):
             self.hGlobal.copy(result=self.hOld)
             self._solve_KSP(True, self.Diff, self.hOld, self.hGlobal)
 
-            # Update cumulative erosion/deposition and elevation
+            # Update cumulative erosion/deposition and soil/bedrock elevation
             self.stepED.waxpy(-1.0,self.hOld,self.hGlobal)
             self.cumED.axpy(1.,self.stepED)
+            self.Hsoil.axpy(1.,self.stepED)
+            Hsoil = self.Hsoil.getArray().copy()
+            Hsoil[Hsoil<0.] = 0.
+            self.Hsoil.setArray(Hsoil)
             self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
             self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
             self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
             self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+            self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
+            self.dm.localToGlobal(self.HsoilLocal, self.Hsoil, 1)
 
         # Remove erosion/deposition on boundary nodes
         hArray = self.hLocal.getArray()

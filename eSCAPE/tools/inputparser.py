@@ -68,7 +68,9 @@ class ReadYaml(object):
         self._readDomain()
         self._readTime()
         self._readSealevel()
-        self._readSPM()
+        self._readSPsediment()
+        self._readSPbedrock()
+        self._readSPdeposition()
         self._readHillslope()
         self._readOut()
         self._readRain()
@@ -239,30 +241,77 @@ class ReadYaml(object):
 
         return
 
-    def _readSPM(self):
+    def _readSPbedrock(self):
         """
-        Read surface processes model parameters.
+        Read surface processes bedrock parameters.
         """
 
         try:
-            spmDict = self.input['spm']
+            spmDict = self.input['sp_br']
+            self.mbr = 0.5
+            self.nbr = 1.0
             try:
-                self.m = spmDict['m']
+                self.Kbr = spmDict['Kbr']
             except KeyError as exc:
-                self.m = 0.5
-                # print("When using the Stream Power Law definition of coefficient m is required.")
-                # raise ValueError('Stream Power Law: m coefficient not found.')
+                print("When using the Surface Process Model definition of coefficient Kbr is required.")
+                raise ValueError('Surface Process Model: Kbr coefficient not found.')
             try:
-                self.n = spmDict['n']
+                self.crit_br = spmDict['sp_crit_br']
             except KeyError as exc:
-                self.n = 1.0
-                # print("When using the Stream Power Law definition of coefficient n is required.")
-                # raise ValueError('Stream Power Law: n coefficient not found.')
+                self.crit_br = 0.0
+        except KeyError as exc:
+            self.mbr = 0.5
+            self.nbr = 1.0
+            self.Kbr = 0.
+            self.crit_br = 0.
+
+        return
+
+    def _readSPsediment(self):
+        """
+        Read surface processes sediment parameters.
+        """
+
+        try:
+            spmDict = self.input['sp_sed']
+            self.msed = 0.5
+            self.nsed = 1.0
+            self.Ksed = spmDict['Ksed']
+            except KeyError as exc:
+                print("When using the Surface Process Model definition of coefficient Ksed is required.")
+                raise ValueError('Surface Process Model: Ksed coefficient not found.')
             try:
-                self.Ke = spmDict['Ke']
+                self.Ksed = spmDict['Ksed']
             except KeyError as exc:
-                print("When using the Surface Process Model definition of coefficient Ke is required.")
-                raise ValueError('Surface Process Model: Ke coefficient not found.')
+                print("When using the Surface Process Model definition of coefficient Ksed is required.")
+                raise ValueError('Surface Process Model: Ksed coefficient not found.')
+            try:
+                self.vland = spmDict['vsL']
+            except KeyError as exc:
+                self.vland = 1.0
+            try:
+                self.vsea = spmDict['vsM']
+            except KeyError as exc:
+                self.vsea = 100.0
+            try:
+                self.crit_sed = spmDict['sp_crit_sed']
+            except KeyError as exc:
+                self.crit_sed = 0.0
+        except KeyError as exc:
+            self.msed = 0.5
+            self.nsed = 1.0
+            self.Ksed = 0.
+            self.crit_sed = 0.0
+
+        return
+
+    def _readSPdeposition(self):
+        """
+        Read surface processes deposition parameters.
+        """
+
+        try:
+            spmDict = self.input['sp_dep']
             try:
                 self.vland = spmDict['vsL']
             except KeyError as exc:
@@ -275,13 +324,20 @@ class ReadYaml(object):
                 self.frac_fine = spmDict['Ff']
             except KeyError as exc:
                 self.frac_fine = 0.0
+            try:
+                self.phi = spmDict['phi']
+            except KeyError as exc:
+                self.phi = 0.0
+            try:
+                self.Hstar = spmDict['Hstar']
+            except KeyError as exc:
+                self.Hstar = 1.0
         except KeyError as exc:
-            self.m = 0.5
-            self.n = 1.0
-            self.Ke = 0.
             self.vland = 1.0
             self.vsea = 5.0
             self.frac_fine = 0.0
+            self.phi = 0.0
+            self.Hstar = 1.0
 
         return
 

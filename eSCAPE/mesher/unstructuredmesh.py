@@ -136,6 +136,18 @@ class UnstMesh(object):
         self.bSlope = self.hLocal.duplicate()
         self.bSlope.set(0.0)
 
+        self.Es = self.hGlobal.duplicate()
+        self.Es.set(0.0)
+        self.Eb = self.hGlobal.duplicate()
+        self.Eb.set(0.0)
+        self.EsLocal = self.hLocal.duplicate()
+        self.EsLocal.set(0.0)
+        self.EbLocal = self.hLocal.duplicate()
+        self.EbLocal.set(0.0)
+
+        self.Hsoil = self.hGlobal.duplicate()
+        self.Hsoil.set(0.0)
+
         if MPIrank == 0 and self.verbose:
             print('Finite volume mesh declaration (%0.02f seconds)'% (clock() - t0))
 
@@ -464,6 +476,11 @@ class UnstMesh(object):
         self.pitGlobal.destroy()
         self.fillGlobal.destroy()
         self.fillLocal.destroy()
+        self.Es.destroy()
+        self.Eb.destroy()
+        self.EsLocal.destroy()
+        self.EbLocal.destroy()
+        self.Hsoil.destroy()
         self.watershedGlobal.destroy()
         self.watershedLocal.destroy()
         self.iMat.destroy()
