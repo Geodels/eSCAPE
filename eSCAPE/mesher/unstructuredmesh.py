@@ -147,6 +147,8 @@ class UnstMesh(object):
 
         self.Hsoil = self.hGlobal.duplicate()
         self.Hsoil.set(0.0)
+        self.HsoilLocal = self.hLocal.duplicate()
+        self.HsoilLocal.set(0.0)
 
         if MPIrank == 0 and self.verbose:
             print('Finite volume mesh declaration (%0.02f seconds)'% (clock() - t0))
@@ -364,7 +366,7 @@ class UnstMesh(object):
                 self.rainFlag = False
 
         localZ = self.hLocal.getArray()
-        seaID = np.where(localZ<self.sealevel)[0]
+        seaID = localZ<self.sealevel
         rainArea = self.rainArea.copy()
         rainArea[seaID] = 0.
         rainArea[self.idGBounds] = 0.
@@ -481,6 +483,7 @@ class UnstMesh(object):
         self.EsLocal.destroy()
         self.EbLocal.destroy()
         self.Hsoil.destroy()
+        self.HsoilLocal.destroy()
         self.watershedGlobal.destroy()
         self.watershedLocal.destroy()
         self.iMat.destroy()

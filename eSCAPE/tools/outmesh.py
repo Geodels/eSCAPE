@@ -121,7 +121,6 @@ class WriteMesh(object):
             f["sedLoad"][:,0] = data
             f.create_dataset('soilH',shape=(len(self.lcoords[:,0]),1), dtype='float32', compression='gzip')
             data = self.HsoilLocal.getArray()
-            data[data<1.] = 1
             f["soilH"][:,0] = data
             del data
 

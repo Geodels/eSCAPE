@@ -162,10 +162,11 @@ class SPMesh(object):
         self.rcvID, self.slpRcv, self.distRcv, self.wghtVal = MFDreceivers(self.flowDir, self.inIDs, hArrayLocal)
         # Account for pit regions
         self.pitID = np.where(self.slpRcv[:,0]<=0.)[0]
-        self.rcvID[self.pitID,:] = np.tile(self.pitID,  (self.flowDir,1)).T
+        self.rcvID[self.pitID,:] = np.tile(self.pitID, (self.flowDir,1)).T
         self.distRcv[self.pitID,:] = 0.
         self.wghtVal[self.pitID,:] = 0.
         # Account for marine regions
+        # self.seaID = hArrayLocal<self.sealevel
         self.seaID = np.where(hArrayLocal<self.sealevel)[0]
         del hArrayLocal
 
@@ -297,13 +298,14 @@ class SPMesh(object):
         EsedMat.destroy()
         self.stepED.waxpy(-1.0,self.hOld,self.vGlob)
         E = self.stepED.getArray().copy()
-        # self.ESed = Es.copy()
         Ecrit = np.divide(E, self.crit_sed, out=np.zeros_like(E),
                                where=self.crit_sed!=0)
         E -= self.crit_sed*(1.0-np.exp(-Ecrit))
         E[E<0.] = 0.
-        E = np.multiply(E,1.0-np.exp(-Hsoil/self.Hstar))
-        E[E*self.dt>Hsoil] = Hsoil/self.dt
+        E = np.multiply(E,self.dt*(1.0-np.exp(-Hsoil/self.Hstar)))
+        ids = E>Hsoil
+        E[ids] = Hsoil[ids]
+        E = np.divide(E,self.dt)
         E = np.multiply(E,1.0-self.phi)
         self.Es.setArray(E)
         self.dm.globalToLocal(self.Es, self.EsLocal, 1)
@@ -312,7 +314,7 @@ class SPMesh(object):
         self.EsLocal.setArray(E)
         self.dm.localToGlobal(self.EsLocal, self.Es, 1)
 
-        del E, Ecrit
+        del E, Ecrit, ids
         del Kcoeff, Kbr, Ksed
 
         return
@@ -353,7 +355,6 @@ class SPMesh(object):
         Qs = self.vland*tmpQ
         Qs[self.seaID] = self.vsea*tmpQ[self.seaID]
         depo = np.divide(Qs, Qw, out=np.zeros_like(Qw), where=Qw!=0)
-
         # Update volume of sediment to distribute
         Qs = np.multiply(depo,self.FVmesh_area)
         tmpQ[self.pitID] += Qs[self.pitID]
@@ -365,18 +366,20 @@ class SPMesh(object):
         Qs[self.idGBounds] = 0.
 
         # Set marine deposition volume
-        depo = depo.fill(0.)
+        depo.fill(0.)
         tmpQ = Qs*self.dt/(1.0-self.phi)
         depo[self.seaID] = tmpQ[self.seaID]
         self.vLoc.setArray(depo)
-        # self.vLoc.setArray(tmpQ)
 
         # Set elevation change due to deposition inland
-        depo = np.divide(tmpQ, self.FVmesh_area, out=np.zeros_like(tmpQ), where=FVmesh_area!=0)
+        tmpQ[self.seaID] = 0.
+        depo = np.divide(tmpQ, self.FVmesh_area, out=np.zeros_like(tmpQ), where=self.FVmesh_area!=0)
+        self.vecL.setArray(depo)
+        self.dm.localToGlobal(self.vecL, self.vecG, 1)
 
-        del Qw, Qs, tmpQ
+        del Qw, Qs, tmpQ, depo
 
-        return depo
+        return
 
     def StreamPowerLaw(self):
         """
@@ -389,10 +392,9 @@ class SPMesh(object):
         self.dm.globalToLocal(self.hOld, self.hOldLocal, 1)
         self.hOldArray = self.hOldLocal.getArray()
 
-        self.Es.set(0.0)
-        self.Eb.set(0.0)
-        Hsoil = self.Hsoil.getArray()
-
+        self.Es.set(0.)
+        self.Eb.set(0.)
+        Hsoil = self.Hsoil.getArray().copy()
         if self.rainFlag:
             self._getErosionRate(Hsoil)
 
@@ -410,25 +412,27 @@ class SPMesh(object):
 
         # Get deposition volume
         if self.rainFlag:
-            Ds = self._getDepositionVolume(Qw)
+            self._getDepositionVolume(Qw)
         else:
             self.vLoc.set(0.)
-            Ds = np.zeros(Hsoil.shape)
+            self.vecG.set(0.)
 
         # Update sediment thicknesses due to erosion
         Es = np.divide(self.Es.getArray(),(1.0-self.phi))
         Es *=self.dt
-        Es[Es>Hsoil] = Hsoil
-        Es[Es<0] = Es
-        del Hsoil
+        ids = Es>Hsoil
+        Es[ids] = Hsoil[ids]
+        Es[Es<0] = 0.
+        del Hsoil, ids
 
         # Update bedrock thicknesses due to erosion
         Eb = np.divide(self.Eb.getArray(),(1.0-self.frac_fine))
         Eb *=self.dt
-        Eb[Eb<0] = Eb
+        Eb[Eb<0] = 0.
 
         # Update parameters
-        self.stepED.setArray(-Es-Eb+Ds)
+        self.stepED.setArray(-Es-Eb)
+        self.stepED.axpy(1.,self.vecG)
         self.cumED.axpy(1.,self.stepED)
         self.hGlobal.axpy(1.,self.stepED)
         self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
@@ -436,12 +440,13 @@ class SPMesh(object):
         self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
         self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
 
-        self.stepED.setArray(-Es+Ds)
+        self.stepED.setArray(-Es)
+        self.stepED.axpy(1.,self.vecG)
         self.Hsoil.axpy(1.,self.stepED)
         self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
         self.dm.localToGlobal(self.HsoilLocal, self.Hsoil, 1)
 
-        del Es, Eb, Ds
+        del Es, Eb
         if MPIrank == 0 and self.verbose:
             print('Compute Stream Power Law (%0.02f seconds)'% (clock() - t0))
 
@@ -584,7 +589,7 @@ class SPMesh(object):
         self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
         del Hsoil
 
-        if MPIrank == 0: # and self.verbose:
+        if MPIrank == 0 and self.verbose:
             print('Deposited sediment diffusion (%0.02f seconds)'% (clock() - t1))
 
         return

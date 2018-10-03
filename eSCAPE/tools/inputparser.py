@@ -247,16 +247,16 @@ class ReadYaml(object):
         """
 
         try:
-            spmDict = self.input['sp_br']
+            spbDict = self.input['sp_br']
             self.mbr = 0.5
             self.nbr = 1.0
             try:
-                self.Kbr = spmDict['Kbr']
+                self.Kbr = spbDict['Kbr']
             except KeyError as exc:
                 print("When using the Surface Process Model definition of coefficient Kbr is required.")
                 raise ValueError('Surface Process Model: Kbr coefficient not found.')
             try:
-                self.crit_br = spmDict['sp_crit_br']
+                self.crit_br = spbDict['sp_crit_br']
             except KeyError as exc:
                 self.crit_br = 0.0
         except KeyError as exc:
@@ -273,28 +273,16 @@ class ReadYaml(object):
         """
 
         try:
-            spmDict = self.input['sp_sed']
+            spsDict = self.input['sp_sed']
             self.msed = 0.5
             self.nsed = 1.0
-            self.Ksed = spmDict['Ksed']
+            try:
+                self.Ksed = spsDict['Ksed']
             except KeyError as exc:
                 print("When using the Surface Process Model definition of coefficient Ksed is required.")
                 raise ValueError('Surface Process Model: Ksed coefficient not found.')
             try:
-                self.Ksed = spmDict['Ksed']
-            except KeyError as exc:
-                print("When using the Surface Process Model definition of coefficient Ksed is required.")
-                raise ValueError('Surface Process Model: Ksed coefficient not found.')
-            try:
-                self.vland = spmDict['vsL']
-            except KeyError as exc:
-                self.vland = 1.0
-            try:
-                self.vsea = spmDict['vsM']
-            except KeyError as exc:
-                self.vsea = 100.0
-            try:
-                self.crit_sed = spmDict['sp_crit_sed']
+                self.crit_sed = spsDict['sp_crit_sed']
             except KeyError as exc:
                 self.crit_sed = 0.0
         except KeyError as exc:
@@ -311,25 +299,25 @@ class ReadYaml(object):
         """
 
         try:
-            spmDict = self.input['sp_dep']
+            spdDict = self.input['sp_dep']
             try:
-                self.vland = spmDict['vsL']
+                self.vland = spdDict['vsL']
             except KeyError as exc:
                 self.vland = 1.0
             try:
-                self.vsea = spmDict['vsM']
+                self.vsea = spdDict['vsM']
             except KeyError as exc:
                 self.vsea = 100.0
             try:
-                self.frac_fine = spmDict['Ff']
+                self.frac_fine = spdDict['Ff']
             except KeyError as exc:
                 self.frac_fine = 0.0
             try:
-                self.phi = spmDict['phi']
+                self.phi = spdDict['phi']
             except KeyError as exc:
                 self.phi = 0.0
             try:
-                self.Hstar = spmDict['Hstar']
+                self.Hstar = spdDict['Hstar']
             except KeyError as exc:
                 self.Hstar = 1.0
         except KeyError as exc:
