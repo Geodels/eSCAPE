@@ -68,6 +68,7 @@ class ReadYaml(object):
         self._readDomain()
         self._readTime()
         self._readSealevel()
+        self._readSoil()
         self._readSPsediment()
         self._readSPbedrock()
         self._readSPdeposition()
@@ -382,6 +383,63 @@ class ReadYaml(object):
 
         return
 
+    def _readSoil(self):
+        """
+        Parse soil dataset.
+        """
+        try:
+            soilDict = self.input['soil']
+            sUniform = None
+            sMap = None
+            try:
+                sUniform = soilDict['uniform']
+            except:
+                pass
+            try:
+                sMap = soilDict['map']
+            except:
+                pass
+
+            if sMap is not None:
+                if self.meshFile[0] != sMap[0]:
+                    try:
+                        with open(sMap[0]) as soilfile:
+                            pass
+                    except IOError as exc:
+                        print("Unable to open soil file: ",sMap[0])
+                        raise IOError('The soil file {} is not found.'.format(sMap[0]))
+
+                    sdata = meshio.read(sMap[0])
+                    soilSet = sdata.point_data
+                else:
+                    soilSet = self.mdata.point_data
+                try:
+                    soilKey = soilSet[sMap[1]]
+                except KeyError as exc:
+                    print("Field name {} is missing from soil file {}".format(sMap[1],sMap[0]))
+                    print("The following fields are available: ",soilSet.keys())
+                    print("Check your soil file fields definition...")
+                    raise KeyError('Field name for soil is not defined correctly or does not exist!')
+
+
+            if sMap is None and sUniform is None:
+                print("For soil definition a soil thickness value (uniform) or a soil grid (map) is required.")
+                raise ValueError('Soil has no value (uniform) or map (map).')
+
+            tmpSoil = []
+            if sMap is None:
+                tmpSoil.insert(0, {'sUni': sUniform, 'sMap': None, 'sKey': None})
+            else:
+                tmpSoil.insert(0, {'sUni': None, 'sMap': sMap[0], 'sKey': sMap[1]})
+            self.soildata = pd.DataFrame(tmpSoil, columns=['sUni', 'sMap', 'sKey'])
+
+        except KeyError as exc:
+            tmpSoil.insert(0, {'sUni': 0., 'sMap': None, 'sKey': None})
+            self.soildata = pd.DataFrame(tmpSoil, columns=['sUni', 'sMap', 'sKey'])
+            pass
+
+        return
+
     def _readRain(self):
         """
         Parse rain forcing conditions.
@@ -418,7 +476,6 @@ class ReadYaml(object):
 
                         mdata = meshio.read(rMap[0])
                         rainSet = mdata.point_data
-                        # del mdata
                     else:
                         rainSet = self.mdata.point_data
                     try:

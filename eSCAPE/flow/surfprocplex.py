@@ -166,7 +166,6 @@ class SPMesh(object):
         self.distRcv[self.pitID,:] = 0.
         self.wghtVal[self.pitID,:] = 0.
         # Account for marine regions
-        # self.seaID = hArrayLocal<self.sealevel
         self.seaID = np.where(hArrayLocal<self.sealevel)[0]
         del hArrayLocal
 
@@ -355,6 +354,7 @@ class SPMesh(object):
         Qs = self.vland*tmpQ
         Qs[self.seaID] = self.vsea*tmpQ[self.seaID]
         depo = np.divide(Qs, Qw, out=np.zeros_like(Qw), where=Qw!=0)
+
         # Update volume of sediment to distribute
         Qs = np.multiply(depo,self.FVmesh_area)
         tmpQ[self.pitID] += Qs[self.pitID]
@@ -475,6 +475,11 @@ class SPMesh(object):
             self.vGlob.pointwiseDivide(self.vGlob,self.areaGlobal)
             self.hGlobal.axpy(1.,self.vGlob)
             self.cumED.axpy(1.,self.vGlob)
+            self.Hsoil.axpy(1.,self.vGlob)
+            Hsoil = self.Hsoil.getArray().copy()
+            Hsoil[Hsoil<0.] = 0.
+            self.Hsoil.setArray(Hsoil)
+            self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
             self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
             self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
             self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)

@@ -17,6 +17,7 @@
 ###
 
 import numpy as np
+import pandas as pd
 from mpi4py import MPI
 import sys,petsc4py
 petsc4py.init(sys.argv)
@@ -104,7 +105,7 @@ class UnstMesh(object):
         t = clock()
         self.FVmesh_ngbNbs, self.FVmesh_ngbID, self.FVmesh_edgeLgt, \
                 self.FVmesh_voroDist = defineTIN(coords, cells_nodes, cells_edges,
-                                                                        edges_nodes, self.FVmesh_area, cc)
+                                                 edges_nodes, self.FVmesh_area, cc)
 
         if MPIrank == 0 and self.verbose:
             print('Tesselation (%0.02f seconds)'% (clock() - t))
@@ -145,10 +146,7 @@ class UnstMesh(object):
         self.EbLocal = self.hLocal.duplicate()
         self.EbLocal.set(0.0)
 
-        self.Hsoil = self.hGlobal.duplicate()
-        self.Hsoil.set(0.0)
-        self.HsoilLocal = self.hLocal.duplicate()
-        self.HsoilLocal.set(0.0)
+        self._getSoilThickness()
 
         if MPIrank == 0 and self.verbose:
             print('Finite volume mesh declaration (%0.02f seconds)'% (clock() - t0))
@@ -257,6 +255,28 @@ class UnstMesh(object):
 
         return
 
+    def _getSoilThickness(self):
+        """
+        Specify initial soil thickness
+        """
+
+        self.Hsoil = self.hGlobal.duplicate()
+        self.HsoilLocal = self.hLocal.duplicate()
+
+        if pd.isnull(self.soildata['sUni'][0]):
+            mdata = meshio.read(self.soildata.iloc[0,1])
+            soilH = mdata.point_data[self.soildata.iloc[0,2]]
+            del mdata
+        else:
+            soilH = np.full(len(self.elev),self.soildata.iloc[0,0])
+
+        self.HsoilLocal.setArray(soilH[self.natural2local])
+        self.dm.localToGlobal(self.HsoilLocal, self.Hsoil, 1)
+        self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
+        del soilH
+
+        return
+
     def _get_boundary(self, label="boundary"):
         """
         Find the nodes on the boundary from the DM
@@ -341,7 +361,6 @@ class UnstMesh(object):
             self.rainFlag = False
             return
 
-        t0 = clock()
         nb = self.rainNb
         if nb < len(self.raindata)-1 :
             if self.raindata.iloc[nb+1,0] <= self.tNow+self.dt :
@@ -352,7 +371,7 @@ class UnstMesh(object):
                 nb = 0
 
             self.rainNb = nb
-            if np.isnan(self.raindata.iloc[nb,1]):
+            if pd.isnull(self.raindata['rUni'][nb]):
                 mdata = meshio.read(self.raindata.iloc[nb,2])
                 rainArea = mdata.point_data[self.raindata.iloc[nb,3]]
                 del mdata
@@ -387,7 +406,6 @@ class UnstMesh(object):
             self.tectonic = None
             return
 
-        t0 = clock()
         nb = self.tecNb
         if nb < len(self.tecdata)-1 :
             if self.tecdata.iloc[nb+1,0] <= self.tNow+self.dt :
@@ -398,7 +416,7 @@ class UnstMesh(object):
                 nb = 0
 
             self.tecNb = nb
-            if np.isnan(self.tecdata.iloc[nb,1]):
+            if pd.isnull(self.tecdata['tUni'][nb]):
                 mdata = meshio.read(self.tecdata.iloc[nb,2])
                 tectonic = mdata.ptdata[self.tecdata.iloc[nb,3]]
                 self.tectonic = tectonic[self.natural2local]*self.dt
