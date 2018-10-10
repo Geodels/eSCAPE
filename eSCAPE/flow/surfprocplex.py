@@ -83,6 +83,8 @@ class SPMesh(object):
         self.diffDT = dt[0]
         self.streamKd =  self.streamKd*self.diffDT
         self.oceanKd =  self.oceanKd*self.diffDT
+        iters = int(self.dt/self.diffDT)+1
+        self.maxIters = max(self.minIters,iters)
 
         # Smoothing matrix construction
         smthcoeff = max(self.streamCd,self.oceanCd)
@@ -548,20 +550,18 @@ class SPMesh(object):
         # Get maximum diffusion iteration number
         iters = int((self.vGlob.max()[1]+1.)*2.0)
         iters = max(10,iters)
-        if iters*self.diffDT < self.dt:
-            iters = int(self.dt/self.diffDT)+1
-        iters = max(self.maxIters,iters)
+        if iters < self.maxIters:
+            iters = self.maxIters
         itflux =  int(iters*0.5)
 
-        if iters > int(self.dt/self.diffDT)+1:
+        if iters > self.maxIters:
             # Smoothing of newly deposited sediments
-            while iters > int(self.dt/self.diffDT)+1:
+            while iters > self.maxIters:
                 self.SmoothingDeposit()
                 iters = int((self.vGlob.max()[1]+1.)*2.0)
                 iters = max(10,iters)
-                if iters*self.diffDT < self.dt:
-                    iters = int(self.dt/self.diffDT)+1
-                iters = max(self.maxIters,iters)
+                if iters < self.maxIters:
+                    iters = self.maxIters
                 itflux =  int(iters*0.5)
             iters *= 2
 
