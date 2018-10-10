@@ -16,6 +16,14 @@
 
 ! f2py --overwrite-signature -m _fortran -h functions.pyf functions.f90
 
+#include "petsc/finclude/petsc.h"
+#include "petsc/finclude/petscmat.h"
+
+#include "petscversion.h"
+
+#undef  CHKERRQ
+#define CHKERRQ(n) if ((n) .ne. 0) return;
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! INTERNAL FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -602,7 +610,7 @@ subroutine getMaxEro( sealvl, inIDs, elev, elev0, clDi, cmDi, Cero, nb )
 
 end subroutine getMaxEro
 
-subroutine getDiffElev( sealvl, inIDs, elev, Cero, clDi, cmDi, dh, nb )
+subroutine getDiffElev( sealvl, inIDs, bounds, elev, Cero, clDi, cmDi, dh, nb )
 !*****************************************************************************
 ! Compute elevation change due to diffusion
 
@@ -612,6 +620,7 @@ subroutine getDiffElev( sealvl, inIDs, elev, Cero, clDi, cmDi, dh, nb )
   integer :: nb
   real( kind=8 ), intent(in) :: sealvl
   integer, intent(in) :: inIDs(nb)
+  integer, intent(in) :: bounds(nb)
   real( kind=8 ), intent(in) :: cmDi(nb,12)
   real( kind=8 ), intent(in) :: clDi(nb,12)
   real( kind=8 ), intent(in) :: elev(nb)
@@ -626,7 +635,7 @@ subroutine getDiffElev( sealvl, inIDs, elev, Cero, clDi, cmDi, dh, nb )
 
   do k = 1, nb
     val0 = 0.
-    if(inIDs(k)>0)then
+    if(inIDs(k)>0 .and. bounds(k)==0)then
       do p = 1, FVnNb(k)
         n = FVnID(k,p)+1
         kd = clDi(k,p)
@@ -658,6 +667,140 @@ subroutine getDiffElev( sealvl, inIDs, elev, Cero, clDi, cmDi, dh, nb )
   return
 
 end subroutine getDiffElev
+
+subroutine diffusionDT(dm, hLocal, hL0, bounds, iters, itflx, inIDs, sFlux, sKd, &
+                       oKd, sl, ierr, nb)
+!*****************************************************************************
+! Internal loop for marine and aerial diffusion on currently deposited sediments.
+
+  use petsc
+  use petscmat
+  use meshparams
+  implicit none
+
+  integer :: nb
+  DM, intent(in) :: dm
+  integer, intent(in) :: iters
+  integer, intent(in) :: itflx
+
+  real( kind=8 ), intent(in) :: sFlux(nb)
+  real( kind=8 ), intent(in) :: sKd(nb,12)
+  real( kind=8 ), intent(in) :: oKd(nb,12)
+  real( kind=8 ), intent(in) :: sl
+  integer, intent(in) :: inIDs(nb)
+  integer, intent(in) :: bounds(nb)
+
+  Vec, intent(inout) :: hLocal
+  Vec, intent(in) :: hL0
+  PetscErrorCode,intent(out) :: ierr
+
+  PetscScalar, pointer :: hArr0(:)
+  PetscScalar, pointer :: hArr(:)
+  PetscScalar, pointer :: Cero(:)
+  real( kind=8 ) :: dh(nb)
+  Vec :: vLoc
+  Vec :: vGlob
+
+  integer :: tstep
+  integer :: k, n, p
+  real( kind=8 ) :: kd, val0, val1(nb,12)
+
+  ! Define vectors
+  call DMCreateGlobalVector(dm,vGlob,ierr);CHKERRQ(ierr)
+  call VecDuplicate(hLocal,vLoc,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(hL0,hArr0,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(hLocal,hArr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(vLoc,Cero,ierr)
+
+  do tstep = 1, iters
+
+    dh = 0.
+    val1 = 0.
+
+    ! Compute maximum erosion thickness for diffusion to ensure stability
+    do k = 1, nb
+      Cero(k) = 1.0
+      val0 = 0.
+      if(inIDs(k)>0)then
+        do p = 1, FVnNb(k)
+          n = FVnID(k,p)+1
+          kd = sKd(k,p)
+          if(n>0 .and. FVeLgt(k,p)>0.)then
+            if(hArr(k)<sl .and. hArr(n)<sl)then
+              kd = oKd(k,p)
+            elseif(hArr(k)>=sl .and. hArr(n)>=sl)then
+              kd = sKd(k,p)
+            elseif(hArr(k)<sl .and. hArr(n)>=sl)then
+              kd = sKd(k,p)
+            elseif(hArr(k)>=sl .and. hArr(n)<sl)then
+              kd = sKd(k,p)
+            else
+              if(hArr(k)>=sl) kd = sKd(k,p)
+              if(hArr(k)<sl) kd = oKd(k,p)
+            endif
+            if(hArr(k)>hArr(n))then
+              val0 = val0+kd*(hArr(n)-hArr(k))
+            endif
+            val1(k,p) = kd*(hArr(n)-hArr(k))
+          endif
+        enddo
+      endif
+      if(val0<0 .and. hArr(k)>hArr0(k))then
+        if(val0<hArr0(k)-hArr(k)) Cero(k) = (hArr0(k)-hArr(k))/val0
+      elseif(hArr(k)==hArr0(k))then
+        Cero(k) = 0.
+      endif
+    enddo
+    call VecRestoreArrayF90(vLoc,Cero,ierr)
+
+    ! Update ghosts
+    ! call DMLocalToLocalBegin(dm,vLoc,INSERT_VALUES,vLoc,ierr)
+    ! call DMLocalToLocalEnd(dm,vLoc,INSERT_VALUES,vLoc,ierr)
+    call DMLocalToGlobalBegin(dm,vLoc,INSERT_VALUES,vGlob,ierr)
+    call DMLocalToGlobalEnd(dm,vLoc,INSERT_VALUES,vGlob,ierr)
+    call DMGlobalToLocalBegin(dm,vGlob,INSERT_VALUES,vLoc,ierr)
+    call DMGlobalToLocalEnd(dm,vGlob,INSERT_VALUES,vLoc,ierr)
+
+    call VecGetArrayF90(vLoc,Cero,ierr)
+
+    ! Compute elevation change due to diffusion
+    do k = 1, nb
+      if(inIDs(k)>0 .and. bounds(k)==0)then
+        do p = 1, FVnNb(k)
+          if(val1(k,p)>0.)then
+            n = FVnID(k,p)+1
+            dh(k) = dh(k) + val1(k,p)*Cero(n)
+          elseif(val1(k,p)<0.)then
+            dh(k) = dh(k) + val1(k,p)*Cero(k)
+          endif
+        enddo
+      endif
+    enddo
+    hArr = hArr + dh
+    if(tstep < itflx) hArr = hArr + sFlux
+
+    call VecRestoreArrayF90(hLocal,hArr,ierr)
+    ! call DMLocalToLocalBegin(dm,hLocal,INSERT_VALUES,hLocal,ierr)
+    ! call DMLocalToLocalEnd(dm,hLocal,INSERT_VALUES,hLocal,ierr)
+    call DMLocalToGlobalBegin(dm,hLocal,INSERT_VALUES,vGlob,ierr)
+    call DMLocalToGlobalEnd(dm,hLocal,INSERT_VALUES,vGlob,ierr)
+    call DMGlobalToLocalBegin(dm,vGlob,INSERT_VALUES,hLocal,ierr)
+    call DMGlobalToLocalEnd(dm,vGlob,INSERT_VALUES,hLocal,ierr)
+
+    ! Update upper layer fraction
+    call VecGetArrayF90(hLocal,hArr,ierr)
+  enddo
+
+  call VecRestoreArrayF90(vLoc,Cero,ierr)
+  call VecRestoreArrayF90(hLocal,hArr,ierr)
+  call VecRestoreArrayF90(hL0,hArr0,ierr)
+
+  call VecDestroy(vGlob,ierr)
+  call VecDestroy(vLoc,ierr)
+
+  return
+
+end subroutine diffusionDT
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! FLOW DIRECTION FUNCTIONS !!

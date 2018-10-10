@@ -10,6 +10,7 @@
 #define  initDiffCoeff   initdiffcoeff
 #define  getMaxEro   getmaxero
 #define  getDiffElev   getdiffelev
+#define  diffusionDT  diffusiondt
 #define  MFDreceivers   mfdreceivers
 #define  defineTIN   definetin
 
@@ -25,6 +26,7 @@
 #define  initDiffCoeff_   initdiffcoeff_
 #define  getMaxEro_   getmaxero_
 #define  getDiffElev_   getdiffelev_
+#define  diffusionDT_  diffusiondt_
 #define  MFDreceivers_   mfdreceivers_
 #define  defineTIN_   definetin_
 
@@ -40,6 +42,7 @@
 #define  _initDiffCoeff   _initdiffcoeff
 #define  _getMaxEro   _getmaxero
 #define  _getDiffElev  _getdiffelev
+#define  _diffusionDT  _diffusiondt
 #define  _MFDreceivers  _mfdreceivers
 #define  _defineTIN  _definetin
 
@@ -55,5 +58,6 @@
 #define  _initDiffCoeff_   _initdiffcoeff_
 #define  _getMaxEro_  _getmaxero_
 #define  _getDiffElev_  _getdiffelev_
+#define  _diffusionDT_  _diffusiondt_
 #define  _MFDreceivers_  _mfdreceivers_
 #define  _defineTIN_   _definetin_

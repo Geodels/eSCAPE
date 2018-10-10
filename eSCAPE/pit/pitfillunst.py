@@ -93,7 +93,6 @@ class UnstPit(object):
         del GIDs
         tmpG.destroy()
         tmpL.destroy()
-
         # Local points that will be used to update watershed spill over points
         self.idLocalComm = np.unique(self.lcells[out].flatten()[ids])
 
@@ -125,12 +124,12 @@ class UnstPit(object):
             self.zhouPit = fillAlgo.depressionFillingZhou(coords=lcoords, ngbIDs=self.FVmesh_ngbID,
                                                           ngbNb=self.FVmesh_ngbNbs, meshIDs=self.inIDs,
                                                           boundary=self.idLBounds, cartesian=False,
-                                                          sealevel=self.sealevel, extent=self.gbounds,
+                                                          sealevel=self.sl_limit, extent=self.gbounds,
                                                           first=self.first)
             del lcoords
         else:
-            self.zhouPit = fillAlgo.depressionFillingZhou(Z=fillZ, cartesian=False,
-                                                          sealevel=self.sealevel, first=self.first)
+            self.zhouPit = fillAlgo.depressionFillingZhou(Z=fillZ, cartesian=False, sealevel=self.sl_limit,
+                                                          first=self.first)
         fillZ, locLabel, watershed, graph = self.zhouPit.performPitFillingUnstruct(simple=False)
 
         # Define globally unique watershed index
@@ -274,6 +273,7 @@ class UnstPit(object):
         Main entry point for parallel pit filling computation.
         """
 
+        self.sl_limit = self.sealevel-2000.
         self._performZhouAlgo()
 
         self._definePitParams()
@@ -305,7 +305,7 @@ class UnstPit(object):
         depLocal = np.zeros(self.npoints)
         depLocal[self.idLocal] = pitDep[self.idLocal]
         pitID = self.pitLocal.getArray()
-        pitID[elev<=self.sealevel] = -1
+        pitID[elev<=self.sl_limit] = -1
         nb = max(int(self.pitData[:,2].max())+1,1)
         pitsedVol,diffDepLocal = pitVolume(depLocal,pitID,nb)
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, pitsedVol, op=MPI.SUM)

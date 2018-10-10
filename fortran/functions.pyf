@@ -143,10 +143,11 @@ python module _fortran ! in
 
       end subroutine getMaxEro
 
-      subroutine getDiffElev(sealvl,inids,elev,cero,cldi,cmdi,dh,nb)
+      subroutine getDiffElev(sealvl,inids,bounds,elev,cero,cldi,cmdi,dh,nb)
 
           real(kind=8) intent(in) :: sealvl
           integer dimension(nb),intent(in) :: inids
+          integer dimension(nb),intent(in),depend(nb) :: bounds
           real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
           real(kind=8) dimension(nb),intent(in),depend(nb) :: cero
           real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cldi
@@ -155,6 +156,24 @@ python module _fortran ! in
           integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
 
       end subroutine getDiffElev
+
+      subroutine diffusionDT(dm,hlocal,hl0,bounds,iters,itflx,inids,sflux,skd,okd,sl,ierr,nb)
+
+        integer(kind=HANDLE_KIND), intent(in)  :: dm
+        integer(kind=HANDLE_KIND), intent(in) :: hl0
+        integer(kind=HANDLE_KIND), intent(inout)  :: hlocal
+        integer dimension(nb),intent(in) :: inids
+        integer dimension(nb),intent(in),depend(nb) :: bounds
+        integer intent(in) :: iters
+        integer intent(in) :: itflx
+        real(kind=8) dimension(nb,12),intent(in),depend(nb) :: skd
+        real(kind=8) dimension(nb,12),intent(in),depend(nb) :: okd
+        real(kind=8) dimension(nb),intent(in),depend(nb) :: sflux
+        real(kind=8),intent(in) :: sl
+        integer, intent(out) ::   ierr
+        integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine diffusionDT
 
       subroutine MFDreceivers(nrcv,inids,elev,rcv,slope,dist,wgt,nb)
 
