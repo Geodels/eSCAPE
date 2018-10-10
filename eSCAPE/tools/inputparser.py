@@ -351,14 +351,14 @@ class ReadYaml(object):
             except KeyError as exc:
                 self.oceanCd = 50.
             try:
-                self.maxIters = hillDict['maxIT']
+                self.maxIters = hillDict['minIT']
             except KeyError as exc:
-                self.maxIters = 500
+                self.maxIters = 100
         except KeyError as exc:
             self.Cd = 0.
             self.streamCd = 100.
             self.oceanCd = 50.
-            self.maxIters = 500
+            self.maxIters = 100
 
         return
 

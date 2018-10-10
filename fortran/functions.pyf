@@ -130,33 +130,6 @@ python module _fortran ! in
 
       end subroutine initDiffCoeff
 
-      subroutine getMaxEro(sealvl,inids,elev,elev0,cldi,cmdi,cero,nb)
-
-          real(kind=8) intent(in) :: sealvl
-          integer dimension(nb),intent(in) :: inids
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cldi
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cmdi
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: cero
-          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
-
-      end subroutine getMaxEro
-
-      subroutine getDiffElev(sealvl,inids,bounds,elev,cero,cldi,cmdi,dh,nb)
-
-          real(kind=8) intent(in) :: sealvl
-          integer dimension(nb),intent(in) :: inids
-          integer dimension(nb),intent(in),depend(nb) :: bounds
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: cero
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cldi
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cmdi
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: dh
-          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
-
-      end subroutine getDiffElev
-
       subroutine diffusionDT(dm,hlocal,hl0,bounds,iters,itflx,inids,sflux,skd,okd,sl,ierr,nb)
 
         integer(kind=HANDLE_KIND), intent(in)  :: dm

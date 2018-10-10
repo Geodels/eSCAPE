@@ -110,7 +110,7 @@ class WriteMesh(object):
             f.create_dataset('flowAcc',shape=(len(self.lcoords[:,0]),1), dtype='float32', compression='gzip')
             data = self.drainAreaLocal.getArray()
             data[self.idGBounds] = 1.
-            # data[self.seaID] = 1.
+            data[self.seaID] = 1.
             data[data<1.] = 1.
             f["flowAcc"][:,0] = data
             f.create_dataset('erodep',shape=(len(self.lcoords[:,0]),1), dtype='float32', compression='gzip')

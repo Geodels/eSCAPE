@@ -552,122 +552,6 @@ subroutine initDiffCoeff(nb, dt, Kds, Kdm, sC, sM, mindt)
 
 end subroutine initDiffCoeff
 
-subroutine getMaxEro( sealvl, inIDs, elev, elev0, clDi, cmDi, Cero, nb )
-!*****************************************************************************
-! Compute maximum erosion thickness for diffusion to ensure stability
-
-  use meshparams
-  implicit none
-
-  integer :: nb
-  real( kind=8 ), intent(in) :: sealvl
-  integer, intent(in) :: inIDs(nb)
-  real( kind=8 ), intent(in) :: cmDi(nb,12)
-  real( kind=8 ), intent(in) :: clDi(nb,12)
-  real( kind=8 ), intent(in) :: elev(nb)
-  real( kind=8 ), intent(in) :: elev0(nb)
-
-  real( kind=8 ), intent(out) :: Cero(nb)
-
-  integer :: k, n, p
-  real( kind=8 ) :: kd, val0
-
-  Cero = 1.
-
-  do k = 1, nb
-    val0 = 0.
-    if(inIDs(k)>0)then
-      do p = 1, FVnNb(k)
-        n = FVnID(k,p)+1
-        kd = clDi(k,p)
-        if(n>0 .and. FVeLgt(k,p)>0.)then
-          if(elev(k)<sealvl .and. elev(n)<sealvl)then
-            kd = cmDi(k,p)
-          elseif(elev(k)>=sealvl .and. elev(n)>=sealvl)then
-            kd = clDi(k,p)
-          elseif(elev(k)<sealvl .and. elev(n)>=sealvl)then
-            kd = clDi(k,p)
-          elseif(elev(k)>=sealvl .and. elev(n)<sealvl)then
-            kd = clDi(k,p)
-          else
-            if(elev(k)>=sealvl) kd = clDi(k,p)
-            if(elev(k)<sealvl) kd = cmDi(k,p)
-          endif
-          if(elev(k)>elev(n))then
-            val0 = val0+kd*(elev(n)-elev(k))
-          endif
-        endif
-      enddo
-    endif
-    if(val0<0 .and. elev(k)>elev0(k))then
-      if(val0<elev0(k)-elev(k))then
-        Cero(k) = (elev0(k)-elev(k))/val0
-      endif
-    elseif(elev(k)==elev0(k))then
-      Cero(k) = 0.
-    endif
-  enddo
-
-end subroutine getMaxEro
-
-subroutine getDiffElev( sealvl, inIDs, bounds, elev, Cero, clDi, cmDi, dh, nb )
-!*****************************************************************************
-! Compute elevation change due to diffusion
-
-  use meshparams
-  implicit none
-
-  integer :: nb
-  real( kind=8 ), intent(in) :: sealvl
-  integer, intent(in) :: inIDs(nb)
-  integer, intent(in) :: bounds(nb)
-  real( kind=8 ), intent(in) :: cmDi(nb,12)
-  real( kind=8 ), intent(in) :: clDi(nb,12)
-  real( kind=8 ), intent(in) :: elev(nb)
-  real( kind=8 ), intent(in) :: Cero(nb)
-
-  real( kind=8 ), intent(out) :: dh(nb)
-
-  integer :: k, n, p
-  real( kind=8 ) :: kd, val, val0
-
-  dh = 0.
-
-  do k = 1, nb
-    val0 = 0.
-    if(inIDs(k)>0 .and. bounds(k)==0)then
-      do p = 1, FVnNb(k)
-        n = FVnID(k,p)+1
-        kd = clDi(k,p)
-        if(n>0 .and. FVeLgt(k,p)>0.)then
-          if(elev(k)<sealvl .and. elev(n)<sealvl)then
-            kd = cmDi(k,p)
-          elseif(elev(k)>=sealvl .and. elev(n)>=sealvl)then
-            kd = clDi(k,p)
-          elseif(elev(k)<sealvl .and. elev(n)>=sealvl)then
-            kd = clDi(k,p)
-          elseif(elev(k)>=sealvl .and. elev(n)<sealvl)then
-            kd = clDi(k,p)
-          else
-            if(elev(k)>=sealvl) kd = clDi(k,p)
-            if(elev(k)<sealvl) kd = cmDi(k,p)
-          endif
-          val = elev(n)-elev(k)
-          if(val>0.)then
-            val0 = val0+kd*val*Cero(n)
-          elseif(val<0.)then
-            val0 = val0+kd*val*Cero(k)
-          endif
-        endif
-      enddo
-      dh(k) = val0
-    endif
-  enddo
-
-  return
-
-end subroutine getDiffElev
-
 subroutine diffusionDT(dm, hLocal, hL0, bounds, iters, itflx, inIDs, sFlux, sKd, &
                        oKd, sl, ierr, nb)
 !*****************************************************************************
@@ -754,8 +638,6 @@ subroutine diffusionDT(dm, hLocal, hL0, bounds, iters, itflx, inIDs, sFlux, sKd,
     call VecRestoreArrayF90(vLoc,Cero,ierr)
 
     ! Update ghosts
-    ! call DMLocalToLocalBegin(dm,vLoc,INSERT_VALUES,vLoc,ierr)
-    ! call DMLocalToLocalEnd(dm,vLoc,INSERT_VALUES,vLoc,ierr)
     call DMLocalToGlobalBegin(dm,vLoc,INSERT_VALUES,vGlob,ierr)
     call DMLocalToGlobalEnd(dm,vLoc,INSERT_VALUES,vGlob,ierr)
     call DMGlobalToLocalBegin(dm,vGlob,INSERT_VALUES,vLoc,ierr)
@@ -780,8 +662,6 @@ subroutine diffusionDT(dm, hLocal, hL0, bounds, iters, itflx, inIDs, sFlux, sKd,
     if(tstep < itflx) hArr = hArr + sFlux
 
     call VecRestoreArrayF90(hLocal,hArr,ierr)
-    ! call DMLocalToLocalBegin(dm,hLocal,INSERT_VALUES,hLocal,ierr)
-    ! call DMLocalToLocalEnd(dm,hLocal,INSERT_VALUES,hLocal,ierr)
     call DMLocalToGlobalBegin(dm,hLocal,INSERT_VALUES,vGlob,ierr)
     call DMLocalToGlobalEnd(dm,hLocal,INSERT_VALUES,vGlob,ierr)
     call DMGlobalToLocalBegin(dm,vGlob,INSERT_VALUES,hLocal,ierr)
