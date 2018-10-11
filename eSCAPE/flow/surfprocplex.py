@@ -185,7 +185,8 @@ class SPMesh(object):
         hArrayLocal = self.hLocal.getArray()
         self.rcvID, self.slpRcv, self.distRcv, self.wghtVal = MFDreceivers(self.flowDir, self.inIDs, hArrayLocal)
         # Account for pit regions
-        self.pitID = np.where(self.slpRcv[:,0]<=0.)[0]
+        pitID = np.where(self.slpRcv[:,0]<=0.)[0]
+        self.pitID = pitID[pitID >= 0]
         self.rcvID[self.pitID,:] = np.tile(self.pitID, (self.flowDir,1)).T
         self.distRcv[self.pitID,:] = 0.
         self.wghtVal[self.pitID,:] = 0.
