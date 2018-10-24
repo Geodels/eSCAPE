@@ -136,6 +136,7 @@ class UnstPit(object):
         label_offset = -np.ones(MPIsize+1, dtype=int)
         label_offset[MPIrank+1] = max(1,len(graph))+1
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, label_offset, op=MPI.MAX)
+        label_offset[0] = 0
         offset = np.cumsum(label_offset)
         watershed += offset[MPIrank]
         locLabel[locLabel>0] += offset[-1]
