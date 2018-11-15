@@ -29,7 +29,6 @@ import meshio
 import meshplex
 
 from eSCAPE._fortran import defineTIN
-from eSCAPE._fortran import meanSlope
 from eSCAPE._fortran import slpBounds
 from eSCAPE._fortran import flatBounds
 
@@ -89,6 +88,7 @@ class UnstMesh(object):
         Tmesh = meshplex.mesh_tri.MeshTri(self.lcoords, self.lcells)
         self.FVmesh_area = np.abs(Tmesh.control_volumes)
         self.boundary, self.localboundIDs = self._get_boundary()
+        self.gbds = self.boundary.astype(int)
 
         # Voronoi and simplices declaration
         coords = Tmesh.node_coords
@@ -105,7 +105,7 @@ class UnstMesh(object):
         t = clock()
         self.FVmesh_ngbNbs, self.FVmesh_ngbID, self.FVmesh_edgeLgt, \
                 self.FVmesh_voroDist = defineTIN(coords, cells_nodes, cells_edges,
-                                                 edges_nodes, self.FVmesh_area, cc)
+                                                 edges_nodes, self.FVmesh_area, cc.T)
 
         if MPIrank == 0 and self.verbose:
             print('Tesselation (%0.02f seconds)'% (clock() - t))
@@ -320,32 +320,24 @@ class UnstMesh(object):
         self._updateTectonic()
 
         # Apply boundary forcing for slope and flat conditions
-        if self.boundCond == 'slope' :
-            if self.tNow == self.tStart :
-                hArray = self.hLocal.getArray()
-                bslp = meanSlope(hArray, self.idGBounds, self.gbounds)
-                self.bSlope.setArray(bslp)
-                del bslp, hArray
+        if self.tNow > self.tStart :
+
+            hArray = self.hLocal.getArray().copy()
+            edArray = self.cumEDLocal.getArray().copy()
+            
+            if self.boundCond == 'slope' :
+                bElev, bDep = slpBounds(hArray, edArray, self.idGBounds, self.gbds)
+            elif self.boundCond == 'flat' :
+                bElev, bDep = flatBounds(hArray, edArray, self.idGBounds, self.gbds)
             else:
-                hArray = self.hLocal.getArray()
-                bSlpe = self.bSlope.getArray()
-                bElev = slpBounds(hArray, bSlpe, self.idGBounds, self.gbounds)
-                self.hLocal.setArray(bElev)
-                del bElev, hArray, bSlpe
-                self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+                bElev = hArray.copy()
+                bDep = edArray.copy()
 
-        if self.tNow > self.tStart and self.boundCond == 'flat' :
-            hArray = self.hLocal.getArray()
-            bElev = flatBounds(hArray, self.idGBounds, self.gbounds)
             self.hLocal.setArray(bElev)
-            del bElev, hArray
+            self.cumEDLocal.setArray(bDep)
+            del bElev, hArray, bDep, edArray
             self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
-
-        slArray = self.cumEDLocal.getArray()
-        bSL = flatBounds(slArray, self.idGBounds, self.gbounds)
-        self.cumEDLocal.setArray(bSL)
-        del bSL, slArray
-        self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+            self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
 
     	if MPIrank == 0 and self.verbose:
             print('Update External Forces (%0.02f seconds)'% (clock() - t0))
@@ -418,7 +410,7 @@ class UnstMesh(object):
             self.tecNb = nb
             if pd.isnull(self.tecdata['tUni'][nb]):
                 mdata = meshio.read(self.tecdata.iloc[nb,2])
-                tectonic = mdata.ptdata[self.tecdata.iloc[nb,3]]
+                tectonic = mdata.point_data[self.tecdata.iloc[nb,3]]
                 self.tectonic = tectonic[self.natural2local]*self.dt
                 # del mdata,tectonic
             else:

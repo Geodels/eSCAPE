@@ -83,24 +83,27 @@ python module _fortran ! in
 
       end subroutine meanSlope
 
-      subroutine flatBounds(elev,bid,gbounds,be,nb,b)
+      subroutine flatBounds(elev,erodep,bid,gbounds,be,bd,nb,b)
 
           real(kind=8) dimension(nb),intent(in) :: elev
+          real(kind=8) dimension(nb),intent(in) :: erodep
           integer dimension(b),intent(in) :: bid
           integer dimension(nb),intent(in),depend(nb) :: gbounds
           real(kind=8) dimension(nb),intent(out),depend(nb) :: be
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: bd
           integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
           integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
 
       end subroutine flatBounds
 
-      subroutine slpBounds(elev,bslp,bid,gbounds,be,nb,b)
+      subroutine slpBounds(elev,erodep,bid,gbounds,be,bd,nb,b)
 
           real(kind=8) dimension(nb),intent(in) :: elev
-          real(kind=8) dimension(nb),intent(in) :: bslp
+          real(kind=8) dimension(nb),intent(in) :: erodep
           integer dimension(b),intent(in) :: bid
           integer dimension(nb),intent(in),depend(nb) :: gbounds
           real(kind=8) dimension(nb),intent(out),depend(nb) :: be
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: bd
           integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
           integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
 
@@ -148,12 +151,22 @@ python module _fortran ! in
 
       end subroutine diffusionDT
 
-      subroutine MFDreceivers(nrcv,inids,elev,rcv,slope,dist,wgt,nb)
+      subroutine minHeight(inids,elev,hmin,nb)
+
+          integer dimension(nb),intent(in) :: inids
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: hmin
+          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine minHeight
+
+      subroutine MFDreceivers(nrcv,inids,elev,rcv,shore,slope,dist,wgt,nb)
 
           integer intent(in) :: nrcv
           integer dimension(nb),intent(in) :: inids
           real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
           integer dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: rcv
+          integer dimension(nb),intent(out),depend(nb) :: shore
           real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: slope
           real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: dist
           real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: wgt
@@ -168,7 +181,7 @@ python module _fortran ! in
           integer dimension(n,3),intent(in),depend(n) :: cells_edges
           integer dimension(m,2),intent(in) :: edges_nodes
           real(kind=8) dimension(nb),intent(in),depend(nb) :: area
-          real(kind=8) dimension(n,3),intent(in),depend(n) :: circumcenter
+          real(kind=8) dimension(3,n),intent(in),depend(n) :: circumcenter
           integer dimension(nb),intent(out),depend(nb) :: ngbnb
           integer dimension(nb,12),intent(out),depend(nb) :: ngbid
           real(kind=8) dimension(nb,12),intent(out),depend(nb) :: edgelgt

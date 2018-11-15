@@ -119,6 +119,7 @@ subroutine split(array, low, high, mid, indices)
       right = right - 1
     enddo
     do
+      if(left > 12) exit
       if(array(left) > pivot) exit
       left = left + 1
     enddo
@@ -206,7 +207,7 @@ subroutine pitHeight(elev, fillZ, pitID, pitVol, pitsedVol, newZ, remain, totnod
   ! Update elevation
   do k = 1, m
     c = pitID(k)
-    if(c>0)then
+    if(c>0 .and. c<=nb)then
       if(pitsedVol(c)>=pitVol(c))then
         newZ(k) = fillZ(k)
         remain(c) = pitsedVol(c)-pitVol(c)
@@ -244,7 +245,7 @@ subroutine addExcess(excess, pitID, addVol, m, n)
   ! Update elevation
   do k = 1, m
     c = pitID(k)
-    if(c>0)then
+    if(c>0 .and. c<=n)then
       if(excess(c)>0.)then
         addVol(k) = excess(c)
       endif
@@ -370,7 +371,7 @@ subroutine meanSlope(elev, bID, gbounds, bslp, nb, b)
       kk = 0
       do p = 1, FVnNb(n)
         nn = FVnID(n,p)+1
-        if(gbounds(nn)==0 .and. FVeLgt(n,p)>0)then
+        if(gbounds(nn)==1 .and. FVeLgt(n,p)>0)then
           smean = smean+(elev(n)-elev(nn))/FVeLgt(n,p)
           kk = kk+1
         endif
@@ -382,7 +383,7 @@ subroutine meanSlope(elev, bID, gbounds, bslp, nb, b)
 
 end subroutine meanSlope
 
-subroutine flatBounds(elev, bID, gbounds, be, nb, b)
+subroutine flatBounds(elev, erodep, bID, gbounds, be, bd, nb, b)
 !*****************************************************************************
 ! Define flat boundary conditions
 
@@ -393,32 +394,40 @@ subroutine flatBounds(elev, bID, gbounds, be, nb, b)
     integer, intent(in) :: bID(b)
     integer, intent(in) :: gbounds(nb)
     real( kind=8 ), intent(in) :: elev(nb)
+    real( kind=8 ), intent(in) :: erodep(nb)
 
     real( kind=8 ), intent(out) :: be(nb)
+    real( kind=8 ), intent(out) :: bd(nb)
 
     integer :: k, p, n, nn, kk
-    real( kind=8 ) :: esum
+    real( kind=8 ) :: esum, bsum
 
     be = elev
+    bd = erodep
     do k = 1, b
       n = bID(k)+1
       esum = 0.
+      bsum = 0.
       kk = 0
       do p = 1, FVnNb(n)
         nn = FVnID(n,p)+1
-        if(gbounds(nn)==0)then
+        if(gbounds(nn)==1 .and. FVeLgt(n,p)>0)then
           esum = esum+elev(nn)
+          bsum = bsum+erodep(nn)
           kk = kk + 1
         endif
       enddo
-      if(kk>0) be(n) = esum/kk
+      if(kk>0)then
+        be(n) = esum/kk
+        bd(n) = bsum/kk
+      endif
     enddo
 
     return
 
 end subroutine flatBounds
 
-subroutine slpBounds(elev, bslp, bID, gbounds, be, nb, b)
+subroutine slpBounds(elev, erodep, bID, gbounds, be, bd, nb, b)
 !*****************************************************************************
 ! Define slope boundary conditions
 
@@ -429,30 +438,29 @@ subroutine slpBounds(elev, bslp, bID, gbounds, be, nb, b)
     integer, intent(in) :: bID(b)
     integer, intent(in) :: gbounds(nb)
     real( kind=8 ), intent(in) :: elev(nb)
-    real( kind=8 ), intent(in) :: bslp(nb)
+    real( kind=8 ), intent(in) :: erodep(nb)
 
     real( kind=8 ), intent(out) :: be(nb)
+    real( kind=8 ), intent(out) :: bd(nb)
 
-    integer :: k, p, n, nn, kk
-    real( kind=8 ) :: v1,v2
+    integer :: k, p, n, nn
+    real( kind=8 ) :: emin, bmin
 
     be = elev
+    bd = erodep
     do k = 1, b
       n = bID(k)+1
-      kk = 0
-      v1 = 0.
-      v2 = 0.
+      emin = 1.e8
+      bmin = 1.e8
       do p = 1, FVnNb(n)
         nn = FVnID(n,p)+1
-        if(gbounds(nn)==0.and.FVeLgt(n,p)>0.)then
-          v1 = v1+elev(nn)/FVeLgt(n,p)
-          v2 = v2+1./FVeLgt(n,p)
-          kk = kk + 1
+        if(gbounds(nn)==1.and.FVeLgt(n,p)>0.)then
+          emin = min(emin,elev(nn))
+          bmin = min(bmin,erodep(nn))
         endif
       enddo
-      if(kk>0 .and. v2.ne.0.)then
-        be(n) = (kk*bslp(n)+v1)/v2
-      endif
+      if(emin<1.e8) be(n) = emin-1.e-12
+      if(bmin<1.e8) bd(n) = bmin-1.e-12
     enddo
 
     return
@@ -686,7 +694,7 @@ end subroutine diffusionDT
 !! FLOW DIRECTION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine MFDreceivers( nRcv, inIDs, elev, rcv, slope, dist, wgt, nb)
+subroutine MFDreceivers( nRcv, inIDs, elev, rcv, shore, slope, dist, wgt, nb)
 !*****************************************************************************
 ! Compute receiver characteristics based on multiple flow direction algorithm
 
@@ -707,16 +715,18 @@ subroutine MFDreceivers( nRcv, inIDs, elev, rcv, slope, dist, wgt, nb)
   integer, intent(in) :: inIDs(nb)
   real( kind=8 ), intent(in) :: elev(nb)
 
+  integer, intent(out) :: shore(nb)
   integer, intent(out) :: rcv(nb,nRcv)
   real( kind=8 ), intent(out) :: slope(nb,nRcv)
   real( kind=8 ), intent(out) :: dist(nb,nRcv)
   real( kind=8 ), intent(out) :: wgt(nb,nRcv)
 
-  integer :: k, n, p,kk
+  integer :: k, n, p, kk
   real( kind=8 ) :: slp(12),dst(12),val
   integer :: id(12)
 
   rcv = -1
+  shore = 0
   slope = 0.
   dist = 0.
   wgt = 0.
@@ -731,6 +741,9 @@ subroutine MFDreceivers( nRcv, inIDs, elev, rcv, slope, dist, wgt, nb)
         n = FVnID(k,p)+1
         if(n>0 .and. FVeLgt(k,p)>0.)then
           val = (elev(k) - elev(n))/FVeLgt(k,p)
+          if(shore(k)==0  .and. elev(k)>0. .and. elev(n) <= 0.)then
+            shore(k) = 1
+          endif
           if(val>0.)then
             kk = kk + 1
             slp(kk) = val
@@ -777,6 +790,42 @@ subroutine MFDreceivers( nRcv, inIDs, elev, rcv, slope, dist, wgt, nb)
 
 end subroutine MFDreceivers
 
+subroutine minHeight( inIDs, elev, hmin, nb)
+!*****************************************************************************
+! Compute minimum height of donor nodes
+
+  use meshparams
+  implicit none
+
+  integer :: nb
+
+  integer, intent(in) :: inIDs(nb)
+  real( kind=8 ), intent(in) :: elev(nb)
+
+  real( kind=8 ), intent(out) :: hmin(nb)
+
+  integer :: k, n, p
+
+  hmin = 0.
+  do k = 1, nb
+    if(inIDs(k)>0)then
+      hmin(k) = 1.e5
+      do p = 1, FVnNb(k)
+        n = FVnID(k,p)+1
+        if(n>0 .and. FVeLgt(k,p)>0.)then
+          if(elev(n)>elev(k) .and. elev(n)-elev(k)<hmin(k))then
+            hmin(k) = elev(n)-elev(k)
+          endif
+        endif
+      enddo
+      if(hmin(k) > 4.9e4) hmin(k) = 0.
+    endif
+  enddo
+
+  return
+
+end subroutine minHeight
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! MESH DECLARATION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -797,7 +846,7 @@ subroutine defineTIN( coords, cells_nodes, cells_edges, edges_nodes, area, circu
 
   real( kind=8 ), intent(in) :: coords(nb,3)
   real( kind=8 ), intent(in) :: area(nb)
-  real( kind=8 ), intent(in) :: circumcenter(n,3)
+  real( kind=8 ), intent(in) :: circumcenter(3,n)
 
   integer, intent(out) :: ngbID(nb, 12)
   integer, intent(out) :: ngbNb(nb)
@@ -914,7 +963,7 @@ subroutine defineTIN( coords, cells_nodes, cells_edges, edges_nodes, area, circu
               endif
             enddo lp4
           endif
-          call euclid( midpoint(1:3), circumcenter(cell_ids(k,cid)+1,1:3),  dist)
+          call euclid( midpoint(1:3), circumcenter(1:3,cell_ids(k,cid)+1),  dist)
           voroDist(k,id) = voroDist(k,id) + dist
         endif
       enddo

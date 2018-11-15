@@ -47,7 +47,7 @@ class UnstPit(object):
 
         t0 = clock()
         self.first = 2
-
+        self.sealimit = 2000.
         self.pitData = None
 
         self.fillGlobal = self.dm.createGlobalVector()
@@ -110,7 +110,7 @@ class UnstPit(object):
         """
 
         t0 = clock()
-        fillZ = self.hLocal.getArray()
+        fillZ = self.hLocal.getArray()+self.sealimit
         self.fillLocal.setArray(fillZ)
         self.dm.localToGlobal(self.fillLocal, self.fillGlobal, 1)
         self.dm.globalToLocal(self.fillGlobal, self.fillLocal, 1)
@@ -274,7 +274,7 @@ class UnstPit(object):
         Main entry point for parallel pit filling computation.
         """
 
-        self.sl_limit = self.sealevel-2000.
+        self.sl_limit = self.sealevel-self.sealimit
         self._performZhouAlgo()
 
         self._definePitParams()
@@ -290,14 +290,14 @@ class UnstPit(object):
             self.pitData = np.zeros((1,5))
             self.pitData[0,2] = -1
 
-        elev = self.hLocal.getArray()
+        elev = self.hLocal.getArray()+self.sealimit
         fillZ = self.fillLocal.getArray()
         cumed = self.cumEDLocal.getArray()
 
         # Find the deposited volume in each depression
         vol = self.vSedLocal.getArray()
         pitDep = np.zeros(self.npoints)
-        pitDep[self.pitID] = vol[self.pitID]*self.dt/(1.0-self.phi)
+        pitDep[self.pitID] = np.divide(vol[self.pitID]*self.dt,1.0-self.phi)
 
         # Remove deposits on the domain boundary
         pitDep[self.idGBounds] = 0.
@@ -308,20 +308,20 @@ class UnstPit(object):
         pitID = self.pitLocal.getArray()
         pitID[elev<=self.sl_limit] = -1
         nb = max(int(self.pitData[:,2].max())+1,1)
-        pitsedVol,diffDepLocal = pitVolume(depLocal,pitID,nb)
+        pitsedVol,diffDepLocal = pitVolume(depLocal,pitID.astype(int),nb)
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, pitsedVol, op=MPI.SUM)
         pitVol = np.zeros(len(pitsedVol))
         if self.pitData[:,2].max() > 0:
             pitVol[self.pitData[:,2].astype(int)-1] = self.pitData[:,4]
 
         # Get the percentage that will be deposited in each depression
-        newZ,remainSed,pitNodes = pitHeight(elev,fillZ,pitID,pitVol,pitsedVol)
+        newZ,remainSed,pitNodes = pitHeight(elev,fillZ,pitID.astype(int),pitVol,pitsedVol)
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, remainSed, op=MPI.SUM)
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, pitNodes, op=MPI.SUM)
 
         # Update elevation and cumulative erosion/deposition
         cumed += newZ-elev
-        self.hLocal.setArray(newZ)
+        self.hLocal.setArray(newZ-self.sealimit)
         self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
         self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
         self.cumEDLocal.setArray(cumed.reshape(-1))

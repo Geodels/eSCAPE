@@ -187,6 +187,7 @@ class ReadYaml(object):
 
         seafile = None
         seafunction = None
+        sealevel = 0.
         self.seafunction = None
         try:
             seaDict = self.input['sea']
@@ -319,6 +320,9 @@ class ReadYaml(object):
                 self.phi = 0.0
             try:
                 self.Hstar = spdDict['Hstar']
+                if self.Hstar <= 0.:
+                    print("Hstar needs to be a strictly positive constant!")
+                    raise ValueError('Hstar needs to be a strictly positive constant!')
             except KeyError as exc:
                 self.Hstar = 1.0
         except KeyError as exc:
@@ -353,12 +357,15 @@ class ReadYaml(object):
             try:
                 self.minIters = hillDict['minIT']
             except KeyError as exc:
-                self.minIters = 100
+                self.minIters = 1
         except KeyError as exc:
             self.Cd = 0.
             self.streamCd = 100.
-            self.oceanCd = 50.
-            self.minIters = 100
+            self.oceanCd = 10.
+            self.minIters = 1
+
+        if self.minIters < 10:
+            self.minIters = 1
 
         return
 

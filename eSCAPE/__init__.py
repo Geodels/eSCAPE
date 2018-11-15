@@ -156,10 +156,12 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
                 _SPMesh.StreamPowerLaw(self)
 
                 # Find depressions chracteristics (volume and spill-over nodes)
-                _UnstPit.depressionDefinition(self)
+                if self.frac_fine < 1.:
+                    _UnstPit.depressionDefinition(self)
 
                 # Apply diffusion to deposited sediments
-                _SPMesh.SedimentDiffusion(self)
+                if self.frac_fine < 1.:
+                    _SPMesh.SedimentDiffusion(self)
 
                 # Compute Hillslope Diffusion Law
                 _SPMesh.HillSlope(self)
@@ -168,10 +170,6 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
                 _UnstMesh.applyForces(self)
 
                 # Output time step
-                # _WriteMesh.outputMesh(self, remesh=False)
-                # self.streamCd = 0.
-                # self.oceanCd = 0.
-                # return
                 if self.tNow >= self.saveTime:
                     _WriteMesh.outputMesh(self, remesh=False)
                     self.saveTime += self.tout
