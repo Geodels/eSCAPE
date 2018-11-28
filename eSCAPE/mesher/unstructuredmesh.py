@@ -305,26 +305,17 @@ class UnstMesh(object):
 
         return bmask, indices
 
-    def applyForces(self):
+    def updateBoundaries(self):
         """
-        Find the different values for climatic and tectonic forces that will be applied to the
-        considered time interval
+        Apply boundary forcing for slope and flat conditions.
         """
 
         t0 = clock()
-        # Sea level
-        self.sealevel = self.seafunction(self.tNow+self.dt)
-        # Climate
-        self._updateRain()
-        # Tectonic
-        self._updateTectonic()
-
-        # Apply boundary forcing for slope and flat conditions
         if self.tNow > self.tStart :
 
             hArray = self.hLocal.getArray().copy()
             edArray = self.cumEDLocal.getArray().copy()
-            
+
             if self.boundCond == 'slope' :
                 bElev, bDep = slpBounds(hArray, edArray, self.idGBounds, self.gbds)
             elif self.boundCond == 'flat' :
@@ -338,6 +329,23 @@ class UnstMesh(object):
             del bElev, hArray, bDep, edArray
             self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
             self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+
+    	if MPIrank == 0 and self.verbose:
+            print('Update Boundaries (%0.02f seconds)'% (clock() - t0))
+
+    def applyForces(self):
+        """
+        Find the different values for climatic and tectonic forces that will be applied to the
+        considered time interval
+        """
+
+        t0 = clock()
+        # Sea level
+        self.sealevel = self.seafunction(self.tNow+self.dt)
+        # Climate
+        self._updateRain()
+        # Tectonic
+        self._updateTectonic()
 
     	if MPIrank == 0 and self.verbose:
             print('Update External Forces (%0.02f seconds)'% (clock() - t0))
@@ -507,6 +515,10 @@ class UnstMesh(object):
         self.vecG.destroy()
         self.vecL.destroy()
         self.vGlob.destroy()
+        self.sfdRcvLocal.destroy()
+        self.sfdRcv.destroy()
+        self.globID.destroy()
+        self.globIDLocal.destroy()
         self.dm.destroy()
 
     	if MPIrank == 0 and self.verbose:

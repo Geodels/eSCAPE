@@ -28,8 +28,10 @@ from time import clock
 import warnings;warnings.simplefilter('ignore')
 
 from eSCAPE._fortran import setHillslopeCoeff
+from eSCAPE._fortran import setDiffusionCoeff
 from eSCAPE._fortran import initDiffCoeff
 from eSCAPE._fortran import MFDreceivers
+from eSCAPE._fortran import singlePit
 from eSCAPE._fortran import minHeight
 from eSCAPE._fortran import diffusionDT
 
@@ -195,6 +197,13 @@ class SPMesh(object):
         """
 
         t0 = clock()
+        # Remove single pit
+        hArrayLocal = self.hLocal.getArray()
+        newh = singlePit(self.inIDs, self.gbounds, hArrayLocal)
+        self.hLocal.setArray(newh)
+        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+        del newh
+
         self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
         hArrayLocal = self.hLocal.getArray()-self.sealevel
         self.rcvID, shore, self.slpRcv, self.distRcv, self.wghtVal = MFDreceivers(self.flowDir, self.inIDs, hArrayLocal)
@@ -227,7 +236,6 @@ class SPMesh(object):
         del ptsXY, shorePtsXY, unique, uniqueX, uniqueY
 
         # Get distance to shoreline for marine vertex
-
         if len(shore)>0:
             tree = cKDTree(shore)
             seaPts = self.lcoords[self.seaID,:2]
@@ -242,7 +250,6 @@ class SPMesh(object):
             del distShore, hArrayLocal
         else:
             del shore,hArrayLocal
-
     	if MPIrank == 0 and self.verbose:
             print('Flow Direction declaration (%0.02f seconds)'% (clock() - t0))
 
@@ -326,7 +333,7 @@ class SPMesh(object):
 
             # Define erosion limiter to prevent formation of flat
             dh = self.hOldArray-self.hOldArray[self.rcvID[:,k]]
-            limiter = np.divide(dh, dh+1.e-6, out=np.zeros_like(dh), where=dh!=0)
+            limiter = np.divide(dh, dh+1.e-3, out=np.zeros_like(dh), where=dh!=0)
 
             # Bedrock erosion processes SPL computation (maximum bedrock incision)
             if self.Kbr > 0.:
@@ -662,6 +669,124 @@ class SPMesh(object):
 
         return
 
+    def _diffuse_TopSed(self, Cd, dt, elev, dh):
+        """
+        Compute top sediment diffusion
+        """
+
+        # Diffusion matrix construction
+        sedCoeffs = setDiffusionCoeff(Cd*dt,elev,dh)
+        sedDiff = self._matrix_build_diag(sedCoeffs[:,0])
+        for k in range(0, self.maxNgbhs):
+            tmpMat = self._matrix_build()
+            indptr = np.arange(0, self.npoints+1, dtype=PETSc.IntType)
+            indices = self.FVmesh_ngbID[:,k].copy()
+            data = np.zeros(self.npoints)
+            ids = np.nonzero(indices<0)
+            indices[ids] = ids
+            data = sedCoeffs[:,k+1]
+            ids = np.nonzero(data==0.)
+            indices[ids] = ids
+            tmpMat.assemblyBegin()
+            tmpMat.setValuesLocalCSR(indptr, indices.astype(PETSc.IntType), data,
+                                                            PETSc.InsertMode.INSERT_VALUES)
+            tmpMat.assemblyEnd()
+            sedDiff += tmpMat
+            tmpMat.destroy()
+
+        del sedCoeffs, data, ids, indices, indptr
+
+        return sedDiff
+
+    def _distributeSediment(self):
+        """
+        Distribute newly deposited sediments
+        """
+
+        t1 = clock()
+        # Constant local & global vectors/arrays
+        self.hGlobal.copy(result=self.hG0)
+        self.hLocal.copy(result=self.hL0)
+        hG0 = self.hG0.getArray().copy()
+        hL0 = self.hL0.getArray().copy()
+
+        # Sediment volume to distribute
+        self.dm.localToGlobal(self.vLoc, self.vGlob, 1)
+
+        # Add sediment volume from pits to diffuse
+        if self.streamCd>0.:
+            self.vGlob.axpy(1.,self.diffDep)
+            self.dm.globalToLocal(self.vGlob, self.vLoc, 1)
+
+        # From volume to sediment thickness
+        self.vGlob.pointwiseDivide(self.vGlob,self.areaGlobal)
+
+        iters = 2*self.minIters
+        dt = self.dt / float(iters)
+
+        # Prepare flux arrays
+        self.vGlob.scale(2.0/float(iters))
+        sFlux = self.vGlob.getArray().copy()
+        sFlux[self.idGBounds] = 0.
+        self.hGlobal.setArray(hG0+sFlux)
+        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+
+        # Nothing to diffuse...
+        if self.vGlob.sum() <= 0. or iters==0:
+            del hG0, hL0, sFlux
+            return
+
+        its = 0
+        Cd = self.oceanCd
+        while(its<iters):
+            self.hGlobal.copy(result=self.hOld)
+            elev = self.hLocal.getArray().copy()
+            elev[self.idGBounds] = hL0[self.idGBounds]
+            self.hLocal.setArray(elev)
+            dh = elev-hL0
+            dh[dh<0] = 0.
+            dh[self.idGBounds] = 0.
+            nelev = setDiffusionCoeff(Cd*dt, elev, dh)
+            self.hLocal.setArray(nelev)
+            self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+            if its<self.minIters:
+                hG0 = self.hGlobal.getArray().copy()
+                self.hGlobal.setArray(hG0+sFlux)
+            self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+
+            # sedDiff = self._diffuse_TopSed(Cd, dt, elev, dh)
+            # self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+            # self._solve_KSP(True, sedDiff, self.hOld, self.hGlobal)
+            # if its<self.minIters:
+            #     hG0 = self.hGlobal.getArray().copy()
+            #     self.hGlobal.setArray(hG0+sFlux)
+            # self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+            # sedDiff.destroy()
+            its += 1
+
+        del elev, dh, nelev
+        del hG0, hL0, sFlux
+
+        # Update erosion/deposition local/global vectors
+        self.stepED.waxpy(-1.0,self.hG0,self.hGlobal)
+        self.cumED.axpy(1.,self.stepED)
+        self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
+        self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+        if self.Ksed > 0. and self.frac_fine < 1.:
+            self.Hsoil.axpy(1.,self.stepED)
+            Hsoil = self.Hsoil.getArray().copy()
+            Hsoil[Hsoil<0.] = 0.
+            self.Hsoil.setArray(Hsoil)
+            self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
+            del Hsoil
+
+        if MPIrank == 0 and self.verbose:
+            print('Deposited sediment distribution (%0.02f seconds)'% (clock() - t1))
+
+        return
+
+        return
+
     def SedimentDiffusion(self):
         """
         Initialise sediment diffusion from pit and marine deposition.
@@ -673,10 +798,11 @@ class SPMesh(object):
         self.depositDepression()
         if MPIrank == 0 and self.verbose:
             print('Fill Pit Depression (%0.02f seconds)'% (clock() - t0))
-
+        
         t0 = clock()
         if self.streamCd > 0 or self.oceanCd > 0:
-            self._diffuseSediment()
+            #self._diffuseSediment()
+            self._distributeSediment()
             if MPIrank == 0 and self.verbose:
                 print('Compute Sediment Diffusion (%0.02f seconds)'% (clock() - t0))
         else:
@@ -715,8 +841,8 @@ class SPMesh(object):
 
         # Add sediment volume from pits to diffuse
         self.dm.localToGlobal(self.vLoc, self.vGlob, 1)
-        self.vGlob.axpy(1.,self.diffDep)
-        self.dm.globalToLocal(self.vGlob, self.vLoc, 1)
+        # self.vGlob.axpy(1.,self.diffDep)
+        # self.dm.globalToLocal(self.vGlob, self.vLoc, 1)
 
         # From volume to sediment thickness
         self.vGlob.pointwiseDivide(self.vGlob,self.areaGlobal)

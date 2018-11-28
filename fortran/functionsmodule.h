@@ -3,13 +3,16 @@
 #define  addExcess addexcess
 #define  spillPoints  spillpoints
 #define  fillDepression filldepression
+#define  combinePit combinepit
 #define  meanSlope  meanslope
 #define  flatBounds  flatbounds
 #define  slpBounds  slpbounds
-#define  setHillslopeCoeff   sethillslopecoeff
+#define  setDiffusionCoeff  setdiffusioncoeff
+#define  setHillslopeCoeff  sethillslopecoeff
 #define  initDiffCoeff   initdiffcoeff
 #define  diffusionDT  diffusiondt
 #define  minHeight   minheight
+#define  singlePit   singlepit
 #define  MFDreceivers   mfdreceivers
 #define  defineTIN   definetin
 
@@ -18,13 +21,16 @@
 #define  addExcess_   addexcess_
 #define  spillPoints_  spillpoints_
 #define  fillDepression_ filldepression_
+#define  combinePit_ combinepit_
 #define  meanSlope_  meanslope_
 #define  flatBounds_  flatbounds_
 #define  slpBounds_  slpbounds_
+#define  setDiffusionCoeff_   setdiffusioncoeff_
 #define  setHillslopeCoeff_   sethillslopecoeff_
 #define  initDiffCoeff_   initdiffcoeff_
 #define  diffusionDT_  diffusiondt_
 #define  minHeight_   minheight_
+#define  singlePit_   singlepit_
 #define  MFDreceivers_   mfdreceivers_
 #define  defineTIN_   definetin_
 
@@ -33,13 +39,16 @@
 #define  _addExcess _addexcess
 #define  _spillPoints  _spillpoints
 #define  _fillDepression  _filldepression
+#define  _combinePit _combinepit
 #define  _meanSlope  _meanslope
 #define  _flatBounds  _flatbounds
 #define  _slpBounds  _slpbounds
+#define  _setDiffusionCoeff   _setdiffusioncoeff
 #define  _setHillslopeCoeff   _sethillslopecoeff
 #define  _initDiffCoeff   _initdiffcoeff
 #define  _diffusionDT  _diffusiondt
 #define  _minHeight   _minheight
+#define  _singlePit   _singlepit
 #define  _MFDreceivers  _mfdreceivers
 #define  _defineTIN  _definetin
 
@@ -48,12 +57,15 @@
 #define  _addExcess_  _addexcess_
 #define  _spillPoints_  _spillpoints_
 #define  _fillDepression_  _filldepression_
+#define  _combinePit_ _combinepit_
 #define  _meanSlope_  _meanslope_
 #define  _flatBounds_  _flatbounds_
 #define  _slpBounds_  _slpbounds_
+#define  _setDiffusionCoeff_   _setdiffusioncoeff_
 #define  _setHillslopeCoeff_   _sethillslopecoeff_
 #define  _initDiffCoeff_   _initdiffcoeff_
 #define  _diffusionDT_  _diffusiondt_
 #define  _minHeight_   _minheight_
+#define  _singlePit_   _singlepit_
 #define  _MFDreceivers_  _mfdreceivers_
 #define  _defineTIN_   _definetin_

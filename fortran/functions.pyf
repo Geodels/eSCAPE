@@ -45,31 +45,36 @@ python module _fortran ! in
 
       end subroutine addExcess
 
-      subroutine spillPoints(nb,remainsed,pitdata,spillpts,n,m)
-
-          integer :: nb
-          real(kind=8) dimension(n),intent(in) :: remainsed
-          real(kind=8) dimension(m,5),intent(in) :: pitdata
-          real(kind=8) dimension(nb,3),intent(out),depend(nb) :: spillpts
-          integer, optional,check(len(remainsed)>=n),depend(remainsed) :: n=len(remainsed)
-          integer, optional,check(shape(pitdata,0)==m),depend(pitdata) :: m=shape(pitdata,0)
-
-      end subroutine spillPoints
-
-      subroutine fillDepression(dem,fillp,pitid,watershed,graph,nv,elev,depressionid,m,nb)
+      subroutine fillDepression(dem,fillp,wsh,graph,area,elev,dID,vol,cPit,m,nb)
 
           real(kind=8) dimension(m),intent(in) :: dem
           real(kind=8) dimension(m),intent(in),depend(m) :: fillp
-          integer dimension(m),intent(in),depend(m) :: pitid
-          integer dimension(m),intent(in),depend(m) :: watershed
+          integer dimension(m),intent(in),depend(m) :: wsh
           real(kind=8) dimension(nb),intent(in) :: graph
-          integer intent(in) :: nv
+          real(kind=8) dimension(m),intent(in),depend(m) :: area
           real(kind=8) dimension(m),intent(out),depend(m) :: elev
-          integer dimension(m),intent(out),depend(m) :: depressionid
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: vol
+          integer dimension(nb,nb),intent(out),depend(nb,nb) :: cPit
+          integer dimension(m),intent(out),depend(m) :: dID
           integer, optional,check(len(dem)>=m),depend(dem) :: m=len(dem)
           integer, optional,check(len(graph)>=nb),depend(graph) :: nb=len(graph)
 
       end subroutine fillDepression
+
+      subroutine combinePit(nb,m,cPit,locvol,pID,order,gPit,gID,gVol,gOver)
+
+          integer :: nb
+          integer :: m
+          integer dimension(nb,nb),intent(in),depend(nb,nb) :: cPit
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: locvol
+          integer dimension(nb),intent(in),depend(nb) :: order
+          integer dimension(m),intent(in),depend(m) :: pID
+          integer dimension(nb),intent(out),depend(nb) :: gPit
+          integer dimension(m),intent(out),depend(m) :: gID
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: gVol
+          integer dimension(nb),intent(out),depend(nb) :: gOver
+
+      end subroutine combinePit
 
       subroutine meanSlope(elev,bid,gbounds,bslp,nb,b)
 
@@ -117,6 +122,26 @@ python module _fortran ! in
 
       end subroutine setHillslopeCoeff
 
+      subroutine setDiffusionCoeff(kd,elev,dh,nelev,nb)
+
+          real(kind=8) intent(in) :: kd
+          real(kind=8) dimension(nb),intent(in) :: elev
+          real(kind=8) dimension(nb),intent(in) :: dh
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: nelev
+          integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
+
+      end subroutine setDiffusionCoeff
+
+      !subroutine setDiffusionCoeff2(kd,elev,dh,dcoeff,nb)
+
+      !    real(kind=8) intent(in) :: kd
+      !    real(kind=8) dimension(nb),intent(in) :: elev
+      !    real(kind=8) dimension(nb),intent(in) :: dh
+      !    real(kind=8) dimension(nb,13),intent(out),depend(nb) :: dcoeff
+      !    integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
+
+      !end subroutine setDiffusionCoeff2
+
       subroutine initDiffCoeff(nb,dt,kds,kdm,sc,sm,mindt)
 
           integer intent(in) :: nb
@@ -159,6 +184,16 @@ python module _fortran ! in
           integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
 
       end subroutine minHeight
+
+      subroutine singlePit(inids,bounds,elev,nelev,nb)
+
+          integer dimension(nb),intent(in) :: inids
+          integer dimension(nb),intent(in) :: bounds
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: nelev
+          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine singlePit
 
       subroutine MFDreceivers(nrcv,inids,elev,rcv,shore,slope,dist,wgt,nb)
 

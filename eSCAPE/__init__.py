@@ -157,7 +157,7 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
 
                 # Find depressions chracteristics (volume and spill-over nodes)
                 if self.frac_fine < 1.:
-                    _UnstPit.depressionDefinition(self)
+                    _UnstPit.defineDepressionParameters(self)
 
                 # Apply diffusion to deposited sediments
                 if self.frac_fine < 1.:
@@ -166,13 +166,17 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
                 # Compute Hillslope Diffusion Law
                 _SPMesh.HillSlope(self)
 
-                # Update Tectonic, Sea-level & Climatic conditions
-                _UnstMesh.applyForces(self)
+                # Update Boundaries
+                _UnstMesh.updateBoundaries(self)
 
                 # Output time step
                 if self.tNow >= self.saveTime:
                     _WriteMesh.outputMesh(self, remesh=False)
                     self.saveTime += self.tout
+
+                # Update Tectonic, Sea-level & Climatic conditions
+                if self.tNow<self.tEnd:
+                    _UnstMesh.applyForces(self)
 
                 # Advance time
                 self.tNow += self.dt

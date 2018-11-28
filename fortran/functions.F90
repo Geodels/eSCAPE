@@ -256,91 +256,145 @@ subroutine addExcess(excess, pitID, addVol, m, n)
 
 end subroutine addExcess
 
-subroutine spillPoints(nb,remainSed, pitData, spillPts, n, m)
-!*****************************************************************************
-! Update spill over point sediment load
-
-  implicit none
-
-  integer :: m, n, nb
-  real( kind=8 ), intent(in) :: remainSed(n)
-  real( kind=8 ), intent(in) :: pitData(m,5)
-
-  real( kind=8 ), intent(out) :: spillPts(nb,3)
-
-  integer :: k, p, c
-  spillPts = 0.
-
-  ! Update elevation
-  c = 1
-  do k = 1, m
-    p = int(pitData(k,3))
-    if(p>0)then
-      if(remainSed(p)>0.)then
-        spillPts(c,1) = pitData(k,1)
-        spillPts(c,2) = pitData(k,4)
-        spillPts(c,3) = remainSed(p)
-        c = c+1
-      endif
-    endif
-  enddo
-
-  return
-
-end subroutine spillPoints
-
-subroutine fillDepression(dem, fillp, pitID, watershed, graph, nv, elev, depressionID, m, nb)
+subroutine fillDepression(dem, fillp, wsh, graph, area, elev, dID, vol, cPit, m, nb)
 !*****************************************************************************
 ! Fill depressions from priority-flood calculation
 
+  use meshparams
   implicit none
 
   integer :: m, nb
-  integer, intent(in) :: nv
-  integer, intent(in) :: watershed(m)
+  integer, intent(in) :: wsh(m)
   real( kind=8 ), intent(in) :: dem(m)
+  real( kind=8 ), intent(in) :: area(m)
   real( kind=8 ), intent(in) :: fillp(m)
-  integer, intent(in) :: pitID(m)
   real( kind=8 ), intent(in) :: graph(nb)
 
   real( kind=8 ), intent(out) :: elev(m)
-  integer, intent(out) :: depressionID(m)
+  real( kind=8 ), intent(out) :: vol(nb)
+  integer, intent(out) :: cPit(nb,nb)
+  integer, intent(out) :: dID(m)
 
-  integer :: k, pitnb, nn
-  integer :: pitVal(nv)
+  integer :: k, nn, p, p1, p2
   real( kind=8 ) :: fillwatershed
 
-  pitnb = 0
-  depressionID = -1
-  pitVal = -1
-
+  dID = -1
+  vol = 0.
+  cPit = 0
   do k = 1, m
-    nn = watershed(k)+1
+    nn = wsh(k)+1
     fillwatershed = graph(nn)
     if(dem(k) < fillp(k) .and. fillp(k) >= fillwatershed)then
       elev(k) = fillp(k)
-      if(pitID(k)>0)then
-        if(pitVal(pitID(k))<0)then
-          pitnb = pitnb+1
-          pitVal(pitID(k)) = pitnb
-        endif
-        depressionID(k) = pitVal(pitID(k))
-      endif
     elseif(dem(k) < fillwatershed)then
       elev(k) = fillwatershed
-      if(pitVal(nn)<0)then
-        pitnb = pitnb+1
-        pitVal(nn) = pitnb
-      endif
-      depressionID(k) = pitVal(nn)
     else
       elev(k) = dem(k)
+    endif
+    if(dem(k)<=fillwatershed) dID(k) = nn-1
+    if(area(k)>0) vol(nn) = vol(nn) + (elev(k)-dem(k))*area(k)
+  enddo
+
+  do k = 1, m
+    p1 = dID(k)+1
+    if(p1>0)then
+      do p = 1, FVnNb(k)
+        nn = FVnID(k,p)+1
+        p2 = dID(nn)+1
+        if(p2>0 .and. p1.ne.p2)then
+          if(elev(k)==elev(nn) .and. dem(nn)<fillwatershed)then
+            cPit(p1,p2) = 1
+            cPit(p2,p1) = 1
+          endif
+        endif
+      enddo
     endif
   enddo
 
   return
 
 end subroutine fillDepression
+
+subroutine combinePit(nb, m, cPit, locvol, pID, order, gPit, gID, gVol, gOver)
+!*****************************************************************************
+! Combine depressions
+
+  use meshparams
+  implicit none
+
+  integer :: nb,m
+  integer, intent(in) :: cPit(nb,nb)
+  integer, intent(in) :: pID(m)
+  real(kind=8), intent(in) :: locvol(nb)
+  integer, intent(in) :: order(nb)
+  integer, intent(out) :: gPit(nb)
+  integer, intent(out) :: gID(m)
+  real(kind=8), intent(out) :: gVol(nb)
+  integer, intent(out) :: gOver(nb)
+
+  integer :: ngbNb(nb), tmp1(2*nb), tmp2(nb)
+  integer :: ngbhArr(nb,nb), tmp(nb,nb)
+
+  real(kind=8) :: vol(nb*2)
+  integer :: k, p, d
+  logical :: exist(nb)
+
+  ngbNb = 0
+  ngbhArr = -1
+  tmp = -1
+  gPit = -1
+  gID = -1
+
+  exist = .False.
+  do k = 1, nb
+    do p = 1, nb
+      if(cPit(k,p)>0 .and. ngbhArr(k,p) < 0)then
+        ngbNb(k) = ngbNb(k)+1
+        ngbhArr(k,p) = 1
+        ngbhArr(p,k) = 1
+        tmp(k,ngbNb(k)) = p
+        exist(k) = .True.
+      endif
+    enddo
+  enddo
+
+  d = nb
+  do k = 1, nb
+    if(exist(k) .and. gPit(k)==-1) gPit(k) = d+k
+    do p = 1, ngbNb(k)
+      gPit(tmp(k,p)) = gPit(k)
+    enddo
+  enddo
+
+  do k = 1, m
+    gID(k) = gPit(pID(k)+1)
+  enddo
+
+  vol = 0.
+  do k = 1, nb
+    if(gPit(k)>2*nb) write(*,*)'Problem of array size!'
+    if(locvol(k)>0.) vol(gPit(k)) = vol(gPit(k)) + locvol(k)
+  enddo
+
+  gVol = 0.
+  tmp1 = 2*nb
+  tmp2 = -1
+  do k = 1, nb
+    if(order(k)>-1) tmp2(order(k)+1) = k
+    if(gPit(k)>0)then
+      gVol(k) = vol(gPit(k))
+      if(order(k)<tmp1(gPit(k)) .and. order(k)>-1) tmp1(gPit(k)) = order(k)
+    endif
+  enddo
+
+  gOver = -1
+  do k = 1, nb
+    if(gPit(k)>-1) gOver(k) = tmp2(tmp1(gPit(k))+1)-1
+  enddo
+
+  return
+
+end subroutine combinePit
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! BOUNDARY CONDITION FUNCTIONS !!
@@ -507,6 +561,94 @@ subroutine setHillslopeCoeff(nb, Kd, dcoeff)
 
 end subroutine setHillslopeCoeff
 
+subroutine setDiffusionCoeff(Kd, elev, dh, nelev, nb)
+!*****************************************************************************
+! Define freshly deposited sediments diffusion matrix coefficients
+
+    use meshparams
+    implicit none
+
+    integer :: nb
+
+    real( kind=8 ), intent(in) :: Kd
+    real( kind=8 ), intent(in) :: elev(nb)
+    real( kind=8 ), intent(in) :: dh(nb)
+
+    real( kind=8 ), intent(out) :: nelev(nb)
+
+    integer :: k, p, n
+    real( kind=8 ) :: s1, c, v, limiter , val
+
+    do k = 1, nb
+      s1 = 0.
+      val = 0.
+      if(FVarea(k)>0)then
+        c = Kd/FVarea(k)
+        do p = 1, FVnNb(k)
+          if(FVvDist(k,p)>0.)then
+            v = c*FVvDist(k,p)/FVeLgt(k,p)
+            n = FVnID(k,p)+1
+            if(elev(n)>elev(k))then
+              limiter = dh(n)/(dh(n)+1.e-3)
+            else
+              limiter = dh(k)/(dh(k)+1.e-3)
+            endif
+            s1 = s1 + v*limiter
+            val = val + v*limiter*elev(n)
+          endif
+        enddo
+        nelev(k) = (1.0 - s1)*elev(k) + val
+      endif
+    enddo
+
+    return
+
+end subroutine setDiffusionCoeff
+
+subroutine setDiffusionCoeff2(Kd, elev, dh, dcoeff, nb)
+!*****************************************************************************
+! Define freshly deposited sediments diffusion matrix coefficients
+
+    use meshparams
+    implicit none
+
+    integer :: nb
+
+    real( kind=8 ), intent(in) :: Kd
+    real( kind=8 ), intent(in) :: elev(nb)
+    real( kind=8 ), intent(in) :: dh(nb)
+
+    real( kind=8 ), intent(out) :: dcoeff(nb,13)
+
+    integer :: k, p, n
+    real( kind=8 ) :: s1, c, v, limiter
+
+    dcoeff = 0.
+    do k = 1, nb
+      s1 = 0.
+      if(FVarea(k)>0)then
+        c = Kd/FVarea(k)
+        do p = 1, FVnNb(k)
+          if(FVvDist(k,p)>0.)then
+            v = c*FVvDist(k,p)/FVeLgt(k,p)
+            n = FVnID(k,p)+1
+            if(elev(n)>elev(k))then
+              limiter = dh(n)/(dh(n)+1.e-3)
+            else
+              limiter = dh(k)/(dh(k)+1.e-3)
+            endif
+            s1 = s1 + v*limiter
+            dcoeff(k,p+1) = -v*limiter
+          endif
+        enddo
+        dcoeff(k,1) = 1.0 + s1
+      endif
+    enddo
+
+    return
+
+end subroutine setDiffusionCoeff2
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! SEDIMENT DIFFUSION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -554,7 +696,7 @@ subroutine initDiffCoeff(nb, dt, Kds, Kdm, sC, sM, mindt)
 
     mindt = max(1.,mindt)
     sC = sC
-    sM= sM
+    sM = sM
 
     return
 
@@ -693,6 +835,53 @@ end subroutine diffusionDT
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! FLOW DIRECTION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+subroutine singlePit( inIDs, bounds, elev, nelev, nb)
+!*****************************************************************************
+! Remove single pit in local elevation grid
+
+  use meshparams
+  implicit none
+
+  integer :: nb
+
+  integer, intent(in) :: inIDs(nb)
+  integer, intent(in) :: bounds(nb)
+  real( kind=8 ), intent(in) :: elev(nb)
+
+  real( kind=8 ), intent(out) :: nelev(nb)
+
+  logical :: isPit
+  integer :: k, n, p
+  real( kind=8 ) :: emax, emin
+
+  nelev = elev
+  do k = 1, nb
+    emin = 1.e8
+    emax = -1.e8
+    if(inIDs(k)>0 .and. bounds(k)==0)then
+      isPit = .True.
+      lp: do p = 1, FVnNb(k)
+        n = FVnID(k,p)+1
+        if(n>0 .and. FVeLgt(k,p)>0.)then
+          if(elev(k)>elev(n))then
+            isPit = .False.
+            exit lp
+          else
+            emax = max(emax,elev(n))
+            emin = min(emin,elev(n))
+          endif
+        endif
+      enddo lp
+      if(isPit)then
+        nelev(k) = emin+1.e-4 !(emax-emin)*0.5
+      endif
+    endif
+  enddo
+
+  return
+
+end subroutine singlePit
 
 subroutine MFDreceivers( nRcv, inIDs, elev, rcv, shore, slope, dist, wgt, nb)
 !*****************************************************************************

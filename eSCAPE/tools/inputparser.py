@@ -227,6 +227,7 @@ class ReadYaml(object):
                 print("Unable to open file: ",seafile)
                 raise IOError('The sealevel file is not found...')
 
+            seadata[1] += sealevel
             if seadata[0].min() > self.tStart:
                 tmpS = []
                 tmpS.insert(0, {0: self.tStart, 1: seadata[1].iloc[0]})

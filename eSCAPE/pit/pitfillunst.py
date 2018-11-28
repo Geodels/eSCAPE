@@ -27,10 +27,10 @@ import warnings;warnings.simplefilter('ignore')
 
 import fillit as fillAlgo
 from eSCAPE._fortran import fillDepression
+from eSCAPE._fortran import combinePit
 from eSCAPE._fortran import pitVolume
 from eSCAPE._fortran import pitHeight
 from eSCAPE._fortran import addExcess
-from eSCAPE._fortran import spillPoints
 
 MPIrank = PETSc.COMM_WORLD.Get_rank()
 MPIsize = PETSc.COMM_WORLD.Get_size()
@@ -59,6 +59,12 @@ class UnstPit(object):
         self.watershedGlobal = self.dm.createGlobalVector()
         self.watershedLocal = self.dm.createLocalVector()
 
+        self.sfdRcv = self.dm.createGlobalVector()
+        self.sfdRcvLocal = self.dm.createLocalVector()
+
+        self.globID = self.dm.createGlobalVector()
+        self.globIDLocal = self.dm.createLocalVector()
+
         # Construct pit filling algorithm vertex indices
         vIS = self.dm.getVertexNumbering()
 
@@ -76,6 +82,7 @@ class UnstPit(object):
         idComm = np.unique(self.lcells[out].flatten()[ids])
         self.idComm = np.zeros(self.npoints,dtype=int)
         self.idComm[idComm] = 1
+        self.commID = idComm
 
         # Local points that are part of the global mesh boundary
         self.idGBounds = np.where(np.isin(self.idLocal,self.localboundIDs))[0]
@@ -104,12 +111,14 @@ class UnstPit(object):
 
         return
 
-    def _performZhouAlgo(self):
+    def defineDepressionParameters(self):
         """
         Perform the pit filling algorithm proposed by Zhou et al., 2016 -- (https://github.com/cageo/Zhou-2016)
         """
 
         t0 = clock()
+        self.sl_limit = self.sealevel-self.sealimit
+
         fillZ = self.hLocal.getArray()+self.sealimit
         self.fillLocal.setArray(fillZ)
         self.dm.localToGlobal(self.fillLocal, self.fillGlobal, 1)
@@ -119,18 +128,17 @@ class UnstPit(object):
         watershed = np.zeros((fillZ.shape),dtype=int)
         fillZ = self.fillLocal.getArray()
         if self.first == 2:
-            lcoords = self.lcoords
+            lcoords = self.lcoords.copy()
             lcoords[:,2] = fillZ
-            self.zhouPit = fillAlgo.depressionFillingZhou(coords=lcoords, ngbIDs=self.FVmesh_ngbID,
+            self.eScapePit = fillAlgo.depressionFillingScape(coords=lcoords, ngbIDs=self.FVmesh_ngbID,
                                                           ngbNb=self.FVmesh_ngbNbs, meshIDs=self.inIDs,
-                                                          boundary=self.idLBounds, cartesian=False,
-                                                          sealevel=self.sl_limit, extent=self.gbounds,
-                                                          first=self.first)
+                                                          boundary=self.idLBounds, sealevel=self.sl_limit,
+                                                          extent=self.gbounds, first=self.first)
             del lcoords
         else:
-            self.zhouPit = fillAlgo.depressionFillingZhou(Z=fillZ, cartesian=False, sealevel=self.sl_limit,
-                                                          first=self.first)
-        fillZ, locLabel, watershed, graph = self.zhouPit.performPitFillingUnstruct(simple=False)
+            self.eScapePit = fillAlgo.depressionFillingScape(Z=fillZ, sealevel=self.sl_limit, first=self.first)
+        fillZ, watershed, graph = self.eScapePit.performPitFillingUnstruct(simple=False)
+        self.mask = watershed<=0
 
         # Define globally unique watershed index
         label_offset = -np.ones(MPIsize+1, dtype=int)
@@ -139,7 +147,6 @@ class UnstPit(object):
         label_offset[0] = 0
         offset = np.cumsum(label_offset)
         watershed += offset[MPIrank]
-        locLabel[locLabel>0] += offset[-1]
         graph[:,0] += offset[MPIrank]
         ids = np.where(graph[:,1]>0)[0]
         graph[ids,1] += offset[MPIrank]
@@ -156,9 +163,9 @@ class UnstPit(object):
         self.dm.globalToLocal(self.fillGlobal, self.fillLocal, 1)
         fillZ = self.fillLocal.getArray()
         if self.first == 2:
-            cgraph = self.zhouPit.combineUnstructGrids(fillZ, watershed, self.idLocalComm, self.idComm)
+            cgraph = self.eScapePit.combineUnstructGrids(fillZ, watershed, self.idLocalComm, self.idComm)
         else:
-            cgraph = self.zhouPit.combineUnstructGrids(fillZ, watershed, None, self.idLocalComm)
+            cgraph = self.eScapePit.combineUnstructGrids(fillZ, watershed, None, self.idLocalComm)
         self.first = 0
         cgraph = np.concatenate((graph,cgraph))
 
@@ -167,117 +174,79 @@ class UnstPit(object):
         label_offset[MPIrank+1] = max(1,len(cgraph))
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, label_offset, op=MPI.MAX)
         offset = np.cumsum(label_offset)
+        graph = -np.ones((np.sum(label_offset),5),dtype=float)
+        graph[offset[MPIrank]:offset[MPIrank]+len(cgraph),:4] =  cgraph
+        graph[offset[MPIrank]:offset[MPIrank]+len(cgraph),4] =  MPIrank
 
-        graph = -np.ones((np.sum(label_offset),3),dtype=float)
-        graph[offset[MPIrank]:offset[MPIrank]+len(cgraph),:] =  cgraph
         if MPIrank == 0:
-            mgraph = -np.ones((np.sum(label_offset),3),dtype=float)
+            mgraph = -np.ones((np.sum(label_offset),5),dtype=float)
         else:
             mgraph = None
         MPI.COMM_WORLD.Reduce(graph, mgraph, op=MPI.MAX, root=0)
 
         if MPIrank == 0:
             # Build bidrectional edges connections
-            cgraph = pd.DataFrame(mgraph,columns=['source','target','weight'])
+            cgraph = pd.DataFrame(mgraph,columns=['source','target','weight','spill','rank'])
             cgraph = cgraph.sort_values('weight')
             cgraph = cgraph.drop_duplicates(['source', 'target'], keep='first')
             c12 = np.concatenate((cgraph['source'].values,cgraph['target'].values))
-            cmax = np.max(np.bincount(c12.astype(int)))
+            cmax = np.max(np.bincount(c12.astype(int)))+1
             # Applying Barnes priority-flood algorithm on the bidirectional graph
-            graph = self.zhouPit.fillGraph(cgraph.values,cmax)
+            ggraph = self.eScapePit.fillGraph(cgraph.values,cmax)
+            ggraph[:,0] -= self.sealimit
         else:
-            graph = None
+            ggraph = None
 
         # Send filled graph dataset to each processors and perform pit filling
-        graph = MPI.COMM_WORLD.bcast(graph, root=0)
-        nn = locLabel.max() + int(watershed.max()) + 2
-        self.z0 = self.hLocal.getArray()
-        fillZ, self.pitIDs = fillDepression(self.z0 , fillZ, locLabel, watershed.astype(int), graph, nn)
-        self.fillLocal.setArray(fillZ)
-        self.dm.localToGlobal(self.fillLocal, self.fillGlobal, 1)
-        self.dm.globalToLocal(self.fillGlobal, self.fillLocal, 1)
-        del graph, cgraph, locLabel, watershed
-        del fillZ, offset, label_offset, mgraph
+        # self.graph array contains:
+        # - pit filling elevation,
+        # - spill over node,
+        # - rank,
+        # - pit to which the considered pit is spilling towards
+        # - order of pit filling
+        self.graph = MPI.COMM_WORLD.bcast(ggraph, root=0)
 
-        if MPIrank == 0 and self.verbose:
-            print('Pit filling algorithm (%0.02f seconds)'% (clock() - t0))
+        # Drain pit on the boundary towards the edges
+        keep = self.graph[:,2].astype(int)==MPIrank
+        proc = -np.ones(len(self.graph))
+        proc[keep] = self.graph[keep,1]
+        keep = proc>-1
+        proc[keep] = self.gbounds[proc[keep].astype(int)]
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, proc, op=MPI.MAX)
+        ids = np.where(proc==1)[0]
+        ids2 = np.where(self.graph[ids,0]==self.graph[self.graph[ids,3].astype(int),0])[0]
+        self.graph[ids[ids2],3] = 0.
+        del ids2
+        fillZ, self.pitIDs, pitVol, combPit = fillDepression(self.hLocal.getArray(), fillZ-self.sealimit,
+                                                             watershed.astype(int), self.graph[:,0],
+                                                             self.FVmesh_area)
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, combPit, op=MPI.MAX)
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, pitVol, op=MPI.MAX)
+        gPit, self.pitIDG, gVol, gOver = combinePit(len(combPit), len(self.pitIDs), combPit, pitVol,
+                                            self.pitIDs, self.graph[:,-1].astype(int))
 
-        return
-
-    def _definePitParams(self):
-        """
-        Define mesh pit parameters
-        """
-
-        t0 = clock()
-
-        fillZ = self.fillLocal.getArray()
-        label_offset = np.zeros(MPIsize+1, dtype=int)
-        label_offset[MPIrank+1] = max(1,self.pitIDs.max())+2
-        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, label_offset, op=MPI.MAX)
-        offset = np.cumsum(label_offset)
-        self.pitIDs[self.pitIDs>0] += offset[MPIrank]
-        pitVols = np.zeros(offset[-1]+1)
-        equal = False
-
-        while(not equal):
-            self.pitLocal.setArray(self.pitIDs.astype(int))
-            self.dm.localToGlobal(self.pitLocal, self.pitGlobal)
-            self.dm.globalToLocal(self.pitGlobal, self.pitLocal)
-            self.pitIDs = self.pitLocal.getArray().astype(int)
-
-            self.pitIDs, newVols, spillPts = self.zhouPit.getPitData_unst(self.z0, fillZ, self.FVmesh_area,
-                                                                                self.pitIDs, int(offset[-1]+1))
-            MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, newVols, op=MPI.SUM)
-
-            spillComb = None
-            if MPIrank == 0:
-                spillComb = np.empty([(offset[-1]+1)*MPIsize*2])
-            MPI.COMM_WORLD.Gather(spillPts.flatten(), spillComb, root=0)
-
-            if MPIrank == 0:
-                spillPts = np.zeros(((offset[-1]+1)*MPIsize,5))
-                spillPts[:,:2] = spillComb.reshape(((offset[-1]+1)*MPIsize,2))
-                pitN = np.arange(1,offset[-1]+2)
-                for k in range(MPIsize):
-                    p = k*(offset[-1]+1)
-                    spillPts[p:p+offset[-1]+1,2] = pitN
-                    spillPts[p:p+offset[-1]+1,3] = k
-                    spillPts[p:p+offset[-1]+1,4] = newVols
-                spill = pd.DataFrame(spillPts,columns=['nid','z','pit','proc','vol'])
-                spill = spill[spill['nid']>-1]
-                spill = spill.sort_values(['pit', 'z'], ascending=[True, True])
-                spill = spill.drop_duplicates(['pit'], keep='first').values
-                spill[:,0] -= 1
-            else:
-                spill = None
-
-            self.pitData = MPI.COMM_WORLD.bcast(spill, root=0)
-            equal = np.array_equal(pitVols,newVols)
-            pitVols = newVols.copy()
+        self.pitDef = -np.ones((len(gVol),5))
+        ids = np.where(self.graph[:,2]>-1)[0]
+        # Combined pit IDs
+        self.pitDef[ids,0] = gPit[ids]
+        # Spill over point ID
+        self.pitDef[ids,1] = self.graph[gOver[ids],1]
+        # Spill over point processor ID
+        self.pitDef[ids,2] = self.graph[gOver[ids],2]
+        # Volume
+        self.pitDef[ids,3] = gVol[ids]
+        # Elevation
+        self.pitDef[ids,4] = self.graph[ids,0]
+        del ids, gPit, gVol, gOver
 
         self.fillLocal.setArray(fillZ)
         self.dm.localToGlobal(self.fillLocal, self.fillGlobal, 1)
         self.dm.globalToLocal(self.fillGlobal, self.fillLocal, 1)
-
-        self.pitLocal.setArray(self.pitIDs)
-        self.dm.localToGlobal(self.pitLocal, self.pitGlobal, 1)
-        self.dm.globalToLocal(self.pitGlobal, self.pitLocal, 1)
+        del graph, cgraph, watershed, ggraph, mgraph
+        del fillZ, offset, label_offset
 
         if MPIrank == 0 and self.verbose:
-            print('Pit parameters definition (%0.02f seconds)'% (clock() - t0))
-
-        return
-
-    def depressionDefinition(self):
-        """
-        Main entry point for parallel pit filling computation.
-        """
-
-        self.sl_limit = self.sealevel-self.sealimit
-        self._performZhouAlgo()
-
-        self._definePitParams()
+            print('Define depression parameters (%0.02f seconds)'% (clock() - t0))
 
         return
 
@@ -285,7 +254,8 @@ class UnstPit(object):
         """
         Perform pit filling based on eroded sediment volume.
         """
-
+        edgesded
+        # self.pitIDG  self.pitDef self.graph
         if len(self.pitData) == 0:
             self.pitData = np.zeros((1,5))
             self.pitData[0,2] = -1
