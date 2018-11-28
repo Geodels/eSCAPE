@@ -30,7 +30,6 @@ from eSCAPE._fortran import fillDepression
 from eSCAPE._fortran import combinePit
 from eSCAPE._fortran import pitVolume
 from eSCAPE._fortran import pitHeight
-from eSCAPE._fortran import addExcess
 
 MPIrank = PETSc.COMM_WORLD.Get_rank()
 MPIsize = PETSc.COMM_WORLD.Get_size()
@@ -48,13 +47,9 @@ class UnstPit(object):
         t0 = clock()
         self.first = 2
         self.sealimit = 2000.
-        self.pitData = None
 
         self.fillGlobal = self.dm.createGlobalVector()
         self.fillLocal = self.dm.createLocalVector()
-
-        self.pitGlobal = self.dm.createGlobalVector()
-        self.pitLocal = self.dm.createLocalVector()
 
         self.watershedGlobal = self.dm.createGlobalVector()
         self.watershedLocal = self.dm.createLocalVector()
@@ -177,7 +172,6 @@ class UnstPit(object):
         graph = -np.ones((np.sum(label_offset),5),dtype=float)
         graph[offset[MPIrank]:offset[MPIrank]+len(cgraph),:4] =  cgraph
         graph[offset[MPIrank]:offset[MPIrank]+len(cgraph),4] =  MPIrank
-
         if MPIrank == 0:
             mgraph = -np.ones((np.sum(label_offset),5),dtype=float)
         else:
@@ -216,10 +210,14 @@ class UnstPit(object):
         ids = np.where(proc==1)[0]
         ids2 = np.where(self.graph[ids,0]==self.graph[self.graph[ids,3].astype(int),0])[0]
         self.graph[ids[ids2],3] = 0.
+        self.graph[self.graph[:,0] < -1.e8,0] = -1.e8
+        self.graph[self.graph[:,0] > 1.e6,0] = -1.e8
         del ids2
+
+        # Define global solution by combining depressions/flat together
         fillZ, self.pitIDs, pitVol, combPit = fillDepression(self.hLocal.getArray(), fillZ-self.sealimit,
                                                              watershed.astype(int), self.graph[:,0],
-                                                             self.FVmesh_area)
+                                                             self.FVmesh_area, self.inIDs)
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, combPit, op=MPI.MAX)
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, pitVol, op=MPI.MAX)
         gPit, self.pitIDG, gVol, gOver = combinePit(len(combPit), len(self.pitIDs), combPit, pitVol,
@@ -254,13 +252,8 @@ class UnstPit(object):
         """
         Perform pit filling based on eroded sediment volume.
         """
-        edgesded
-        # self.pitIDG  self.pitDef self.graph
-        if len(self.pitData) == 0:
-            self.pitData = np.zeros((1,5))
-            self.pitData[0,2] = -1
 
-        elev = self.hLocal.getArray()+self.sealimit
+        elev = self.hLocal.getArray()
         fillZ = self.fillLocal.getArray()
         cumed = self.cumEDLocal.getArray()
 
@@ -275,38 +268,66 @@ class UnstPit(object):
         # Compute cumulative deposition on each depression globally
         depLocal = np.zeros(self.npoints)
         depLocal[self.idLocal] = pitDep[self.idLocal]
-        pitID = self.pitLocal.getArray()
-        pitID[elev<=self.sl_limit] = -1
-        nb = max(int(self.pitData[:,2].max())+1,1)
-        pitsedVol,diffDepLocal = pitVolume(depLocal,pitID.astype(int),nb)
+        pitsedVol = pitVolume(depLocal,self.pitIDG,self.pitIDG.max()+1)
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, pitsedVol, op=MPI.SUM)
-        pitVol = np.zeros(len(pitsedVol))
-        if self.pitData[:,2].max() > 0:
-            pitVol[self.pitData[:,2].astype(int)-1] = self.pitData[:,4]
 
         # Get the percentage that will be deposited in each depression
-        newZ,remainSed,pitNodes = pitHeight(elev,fillZ,pitID.astype(int),pitVol,pitsedVol)
-        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, remainSed, op=MPI.SUM)
-        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, pitNodes, op=MPI.SUM)
+        # and the excess sediment to distribute if any...
+        keep = self.pitDef[:,0].astype(int)>-1
+        percDep = np.zeros(len(self.pitDef))
+        percDep[keep] = pitsedVol[self.pitDef[keep,0].astype(int)]
+        remainSed = percDep - self.pitDef[:,3]
+        remainSed[remainSed<0] = 0.
+        remainSed[self.pitDef[:,3]<0] = 0.
+        percDep = np.divide(percDep, self.pitDef[:,3], out=np.zeros_like(percDep),
+                            where=self.pitDef[:,3]!=0)
+        percDep[percDep>1.] = 1.
+
+        # Update height from deposited sediment volume in each depression
+        perc = np.zeros(len(pitsedVol))
+        newZ = pitHeight(elev, fillZ, self.pitIDG, perc)
+        perc[self.pitDef[keep,0].astype(int)] = percDep[keep]
 
         # Update elevation and cumulative erosion/deposition
         cumed += newZ-elev
-        self.hLocal.setArray(newZ-self.sealimit)
+        self.hLocal.setArray(newZ)
         self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
         self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
         self.cumEDLocal.setArray(cumed.reshape(-1))
         self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
         self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
 
-        # Distribute remaining sediment that will need to be diffused
-        excessSed = np.divide(remainSed, pitNodes, out=np.zeros_like(remainSed),
-                                    where=pitNodes!=0)
-        addSed = addExcess(excessSed,pitID)
+        # Move excess sediment to the downstream node of the overspill node...
+        # diffDepLocal += addSed
+        # self.diffDepLocal.setArray(diffDepLocal)
+        # self.dm.localToGlobal(self.diffDepLocal, self.diffDep, 1)
+        # self.dm.globalToLocal(self.diffDep, self.diffDepLocal, 1)
 
-        # Add excess sediment volumes on pit's nodes
-        diffDepLocal += addSed
-        self.diffDepLocal.setArray(diffDepLocal)
-        self.dm.localToGlobal(self.diffDepLocal, self.diffDep, 1)
-        self.dm.globalToLocal(self.diffDep, self.diffDepLocal, 1)
+
+        # if MPIrank == 1:
+        #     print self.pitDef[:,3]
+        #     print self.pitIDG.min(),self.pitIDG.max()
+        #     print self.pitDef[:,0]
+        #     print percDep
+        #     print remainSed
+        #     print pitsedVol
+        # data = np.zeros((self.npoints,4))
+        # data[:,0] = self.lcoords[:,0]
+        # data[:,1] = self.lcoords[:,1]
+        # data[self.idLocal,2] = 1
+        # data[:,3] = elev
+        # df = pd.DataFrame(data,columns=['X','Y','ID','Z'])
+        # df.to_csv('id'+str(MPIrank)+'.csv', index=False)
+        # id = np.where(pitDep==pitDep.max())[0]
+        #
+        # if MPIrank == 1:
+        #     print self.lcoords[id]
+        #     print id,self.pitIDs[id],self.pitIDG[id]
+        #     print pitDep.max()
+        #     print self.pitDef[:,3]
+        del pitDep, elev, fillZ, cumed, newZ
+        del perc, vol, percDep, remainSed, keep
+        
+        ededed
 
         return

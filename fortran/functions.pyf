@@ -8,50 +8,36 @@ python module _fortran ! in
   '''
   interface  ! in :_fortran
 
-      subroutine pitVolume(deplocal,pitid,pitnb,pitvol,notpitvol,m)
+      subroutine pitVolume(deplocal,pitidg,nb,voldep,m)
 
+          integer intent(in) :: nb
           real(kind=8) dimension(m),intent(in) :: deplocal
-          integer dimension(m),intent(in),depend(m) :: pitid
-          integer intent(in) :: pitnb
-          real(kind=8) dimension(pitnb),intent(out),depend(pitnb) :: pitvol
-          real(kind=8) dimension(m),intent(out),depend(m) :: notpitvol
+          integer dimension(m),intent(in),depend(m) :: pitidg
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: voldep
           integer, optional,check(len(deplocal)>=m),depend(deplocal) :: m=len(deplocal)
 
       end subroutine pitVolume
 
-      subroutine pitHeight(elev,fillz,pitid,pitvol,pitsedvol,newz,remain,totnodes,m,nn,nb)
+      subroutine pitHeight(elev,fillz,pitidg,percdep,newz,m,nb)
 
           real(kind=8) dimension(m),intent(in) :: elev
           real(kind=8) dimension(m),intent(in),depend(m) :: fillz
-          integer dimension(m),intent(in),depend(m) :: pitid
-          real(kind=8) dimension(nn),intent(in) :: pitvol
-          real(kind=8) dimension(nb),intent(in) :: pitsedvol
+          integer dimension(m),intent(in),depend(m) :: pitidg
+          real(kind=8) dimension(nb),intent(in) :: percdep
           real(kind=8) dimension(m),intent(out),depend(m) :: newz
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: remain
-          integer dimension(nb),intent(out),depend(nb) :: totnodes
           integer, optional,check(len(elev)>=m),depend(elev) :: m=len(elev)
-          integer, optional,check(len(pitvol)>=nn),depend(pitvol) :: nn=len(pitvol)
-          integer, optional,check(len(pitsedvol)>=nb),depend(pitsedvol) :: nb=len(pitsedvol)
+          integer, optional,check(len(percdep)>=nb),depend(percdep) :: nb=len(percdep)
 
       end subroutine pitHeight
 
-      subroutine addExcess(excess,pitid,addvol,m,n)
-
-          real(kind=8) dimension(n),intent(in) :: excess
-          integer dimension(m),intent(in) :: pitid
-          real(kind=8) dimension(m),intent(out),depend(m) :: addvol
-          integer, optional,check(len(excess)>=n),depend(excess) :: n=len(excess)
-          integer, optional,check(len(pitid)>=m),depend(pitid) :: m=len(pitid)
-
-      end subroutine addExcess
-
-      subroutine fillDepression(dem,fillp,wsh,graph,area,elev,dID,vol,cPit,m,nb)
+      subroutine fillDepression(dem,fillp,wsh,graph,area,idloc,elev,dID,vol,cPit,m,nb)
 
           real(kind=8) dimension(m),intent(in) :: dem
           real(kind=8) dimension(m),intent(in),depend(m) :: fillp
           integer dimension(m),intent(in),depend(m) :: wsh
           real(kind=8) dimension(nb),intent(in) :: graph
           real(kind=8) dimension(m),intent(in),depend(m) :: area
+          integer dimension(m),intent(in),depend(m) :: idloc
           real(kind=8) dimension(m),intent(out),depend(m) :: elev
           real(kind=8) dimension(nb),intent(out),depend(nb) :: vol
           integer dimension(nb,nb),intent(out),depend(nb,nb) :: cPit

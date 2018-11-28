@@ -492,8 +492,6 @@ class UnstMesh(object):
         self.diffDepLocal.destroy()
         self.hLocal.destroy()
         self.hGlobal.destroy()
-        self.pitLocal.destroy()
-        self.pitGlobal.destroy()
         self.fillGlobal.destroy()
         self.fillLocal.destroy()
         self.Es.destroy()

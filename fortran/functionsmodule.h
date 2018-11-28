@@ -1,7 +1,5 @@
 #define  pitVolume   pitvolume
 #define  pitHeight   pitheight
-#define  addExcess addexcess
-#define  spillPoints  spillpoints
 #define  fillDepression filldepression
 #define  combinePit combinepit
 #define  meanSlope  meanslope
@@ -18,8 +16,6 @@
 
 #define  pitVolume_   pitvolume_
 #define  pitHeight_   pitheight_
-#define  addExcess_   addexcess_
-#define  spillPoints_  spillpoints_
 #define  fillDepression_ filldepression_
 #define  combinePit_ combinepit_
 #define  meanSlope_  meanslope_
@@ -36,8 +32,6 @@
 
 #define  _pitVolume   _pitvolume
 #define  _pitHeight   _pitheight
-#define  _addExcess _addexcess
-#define  _spillPoints  _spillpoints
 #define  _fillDepression  _filldepression
 #define  _combinePit _combinepit
 #define  _meanSlope  _meanslope
@@ -54,8 +48,6 @@
 
 #define  _pitVolume_   _pitvolume_
 #define  _pitHeight_   _pitheight_
-#define  _addExcess_  _addexcess_
-#define  _spillPoints_  _spillpoints_
 #define  _fillDepression_  _filldepression_
 #define  _combinePit_ _combinepit_
 #define  _meanSlope_  _meanslope_

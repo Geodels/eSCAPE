@@ -146,33 +146,25 @@ end subroutine split
 !! PIT FILLING RELATED FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine pitVolume(depLocal, pitID, pitNb, pitVol, notpitVol, m)
+subroutine pitVolume(depLocal, pitIDG, nb, volDep, m)
 !*****************************************************************************
 ! Get local volume of sediment deposited on each pit for unstructured grids
 
   implicit none
 
   integer :: m
-  integer, intent(in) :: pitNb
+  integer, intent(in) :: nb
   real( kind=8 ), intent(in) :: depLocal(m)
-  integer, intent(in) :: pitID(m)
+  integer, intent(in) :: pitIDG(m)
 
-  real( kind=8 ), intent(out) :: notpitVol(m)
-  real( kind=8 ), intent(out) :: pitVol(pitNb)
+  real( kind=8 ), intent(out) :: volDep(nb)
 
-  integer :: k, c
+  integer :: k
 
-  pitVol = 0.
-  notpitVol = 0.
-
+  volDep = 0.
   do k = 1, m
-    if(depLocal(k)>0.)then
-      c = pitID(k)
-      if(c>0)then
-        pitVol(c) = pitVol(c)+depLocal(k)
-      else
-        notpitVol(k) = depLocal(k)
-      endif
+    if(depLocal(k)>0 .and. pitIDG(k)>0)then
+      volDep(pitIDG(k)+1) = volDep(pitIDG(k)+1)+depLocal(k)
     endif
   enddo
 
@@ -180,44 +172,32 @@ subroutine pitVolume(depLocal, pitID, pitNb, pitVol, notpitVol, m)
 
 end subroutine pitVolume
 
-subroutine pitHeight(elev, fillZ, pitID, pitVol, pitsedVol, newZ, remain, totnodes, m, nn, nb)
+subroutine pitHeight(elev, fillZ, pitIDG, percDep, newZ, m, nb)
 !*****************************************************************************
-! Update elevation each pit
+! Update elevation on each pit
 
   implicit none
 
-  integer :: m, nn, nb
+  integer :: m, nb
   real( kind=8 ), intent(in) :: elev(m)
   real( kind=8 ), intent(in) :: fillZ(m)
-  integer, intent(in) :: pitID(m)
-  real( kind=8 ), intent(in) :: pitVol(nn)
-  real( kind=8 ), intent(in) :: pitsedVol(nb)
+  integer, intent(in) :: pitIDG(m)
+  real( kind=8 ), intent(in) :: percDep(nb)
 
   real( kind=8 ), intent(out) :: newZ(m)
-  real( kind=8 ), intent(out) :: remain(nb)
-  integer, intent(out) :: totnodes(nb)
 
   integer :: k, c
-  real( kind=8 ) :: frac
 
   newZ = elev
-  remain = 0.
-  totnodes = 0
 
   ! Update elevation
   do k = 1, m
-    c = pitID(k)
-    if(c>0 .and. c<=nb)then
-      if(pitsedVol(c)>=pitVol(c))then
+    c = pitIDG(k)+1
+    if(c>0)then
+      if(percDep(c)==1)then
         newZ(k) = fillZ(k)
-        remain(c) = pitsedVol(c)-pitVol(c)
-        totnodes(c) = totnodes(c) + 1
       else
-        if(pitVol(c)>0.)then
-          frac = pitsedVol(c)/pitVol(c)
-          newZ(k) = frac*(fillZ(k)-elev(k))+elev(k)
-        endif
-        remain(c) = 0.
+        newZ(k) = percDep(c)*(fillZ(k)-elev(k))+elev(k)
       endif
     endif
   enddo
@@ -226,39 +206,9 @@ subroutine pitHeight(elev, fillZ, pitID, pitVol, pitsedVol, newZ, remain, totnod
 
 end subroutine pitHeight
 
-subroutine addExcess(excess, pitID, addVol, m, n)
+subroutine fillDepression(dem, fillp, wsh, graph, area, idloc, elev, dID, vol, cPit, m, nb)
 !*****************************************************************************
-! Add excess sediment volume on pit nodes
-
-  implicit none
-
-  integer :: m, n
-  integer, intent(in) :: pitID(m)
-  real( kind=8 ), intent(in) :: excess(n)
-
-  real( kind=8 ), intent(out) :: addVol(m)
-
-  integer :: k, c
-
-  addVol = 0.
-
-  ! Update elevation
-  do k = 1, m
-    c = pitID(k)
-    if(c>0 .and. c<=n)then
-      if(excess(c)>0.)then
-        addVol(k) = excess(c)
-      endif
-    endif
-  enddo
-
-  return
-
-end subroutine addExcess
-
-subroutine fillDepression(dem, fillp, wsh, graph, area, elev, dID, vol, cPit, m, nb)
-!*****************************************************************************
-! Fill depressions from priority-flood calculation
+! Fill depressions/flats from priority-flood calculation
 
   use meshparams
   implicit none
@@ -267,6 +217,7 @@ subroutine fillDepression(dem, fillp, wsh, graph, area, elev, dID, vol, cPit, m,
   integer, intent(in) :: wsh(m)
   real( kind=8 ), intent(in) :: dem(m)
   real( kind=8 ), intent(in) :: area(m)
+  integer, intent(in) :: idloc(m)
   real( kind=8 ), intent(in) :: fillp(m)
   real( kind=8 ), intent(in) :: graph(nb)
 
@@ -292,7 +243,7 @@ subroutine fillDepression(dem, fillp, wsh, graph, area, elev, dID, vol, cPit, m,
       elev(k) = dem(k)
     endif
     if(dem(k)<=fillwatershed) dID(k) = nn-1
-    if(area(k)>0) vol(nn) = vol(nn) + (elev(k)-dem(k))*area(k)
+    if(area(k)>0 .and. idloc(k)==1) vol(nn) = vol(nn) + (elev(k)-dem(k))*area(k)
   enddo
 
   do k = 1, m
@@ -317,7 +268,7 @@ end subroutine fillDepression
 
 subroutine combinePit(nb, m, cPit, locvol, pID, order, gPit, gID, gVol, gOver)
 !*****************************************************************************
-! Combine depressions
+! Combine depressions/flats globally and extract their information...
 
   use meshparams
   implicit none
@@ -367,7 +318,7 @@ subroutine combinePit(nb, m, cPit, locvol, pID, order, gPit, gID, gVol, gOver)
   enddo
 
   do k = 1, m
-    gID(k) = gPit(pID(k)+1)
+    if(pID(k)>-1) gID(k) = gPit(pID(k)+1)
   enddo
 
   vol = 0.
