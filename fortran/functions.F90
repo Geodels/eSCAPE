@@ -12,7 +12,7 @@
 ! GNU Lesser General Public License for more details.
 !
 ! You should have received a copy of the GNU Lesser General Public License
-! along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
+! along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>. 
 
 ! f2py --overwrite-signature -m _fortran -h functions.pyf functions.f90
 
