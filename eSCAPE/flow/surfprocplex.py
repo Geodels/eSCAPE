@@ -96,7 +96,6 @@ class SPMesh(object):
         self.tmpL = self.hLocal.duplicate()
         self.tmpSG = self.hGlobal.duplicate()
         self.tmpSL = self.hLocal.duplicate()
-        self.depoG = self.hGlobal.duplicate()
         del data
 
         return
@@ -447,8 +446,6 @@ class SPMesh(object):
             seaDmax[self.idGBounds] = 0.
             self.tmpSL.setArray(-seaDmax)
             self.dm.localToGlobal(self.tmpSL, self.tmpSG, 1)
-            #seaDmax = self.tmpSG.getArray().copy()
-            #self.tmpG
             self.tmpSG.copy(result=self.tmpG)
             self.tmpG.axpy(-1.,self.diffDep)
             # Get the sediment fluxes
@@ -467,9 +464,7 @@ class SPMesh(object):
 
         if type == 0:
             self.stepED.setArray(Es+Eb-seaDmax)
-            self.depoG.setArray(-seaDmax)
             self.stepED.pointwiseMult(self.stepED,self.areaGlobal)
-            self.depoG.pointwiseMult(self.tmpG,self.areaGlobal)
             del seaDmax
         elif type == 1:
             self.stepED.setArray(Es+Eb)
@@ -589,18 +584,13 @@ class SPMesh(object):
         # Define excess sediment volume to deposit in depression
         excessDep = np.zeros(len(Ds))
         excessDep[self.pitlandID] = tmpQ[self.pitlandID]
-        # print 'landde',(excessDep/self.FVmesh_area).max()
         excessDep[self.pitseaID] = tmpQ[self.pitseaID]-self.seaDep[self.pitseaID]
         excessDep[self.idGBounds] = 0.
-        #idddd = np.where(excessDep==excessDep.max())[0]
-        # print 'seade',(excessDep[idddd]/self.FVmesh_area[idddd]),self.FVmesh_area[idddd]
         excessDep[excessDep<0.] = 0.
         directAdd = np.zeros(self.npoints)
         if excessDep.max()<10. or force:
             directAdd = excessDep.copy()
             excessDep = np.zeros(self.npoints)
-        # print 'excessDep',excessDep.min(),excessDep.max() #,excessDep[25976]
-        # print 'fefefe',excessDep[25976]/self.FVmesh_area[25976]
         self.vLoc.setArray(excessDep)
         del excessDep
 
@@ -610,7 +600,6 @@ class SPMesh(object):
         tmpQ[self.idGBounds] = 0.
         tmpQ += directAdd
         depo = np.divide(tmpQ, self.FVmesh_area, out=np.zeros_like(tmpQ), where=self.FVmesh_area!=0)
-        # print 'DEPOOO',depo.max()
         self.vecL.setArray(depo)
         self.dm.localToGlobal(self.vecL, self.vecG, 1)
 
