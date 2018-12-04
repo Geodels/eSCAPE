@@ -148,7 +148,7 @@ end subroutine split
 
 subroutine pitVolume(depLocal, pitIDG, nb, volDep, m)
 !*****************************************************************************
-! Get local volume of sediment deposited on each pit for unstructured grids
+! Get local volume of sediment deposited on each pit
 
   implicit none
 
@@ -196,7 +196,7 @@ subroutine pitHeight(elev, fillZ, pitIDG, percDep, newZ, m, nb)
     if(c>0)then
       if(percDep(c)==1)then
         newZ(k) = fillZ(k)
-      else
+      elseif(fillZ(k)>elev(k))then
         newZ(k) = percDep(c)*(fillZ(k)-elev(k))+elev(k)
       endif
     endif
@@ -206,7 +206,44 @@ subroutine pitHeight(elev, fillZ, pitIDG, percDep, newZ, m, nb)
 
 end subroutine pitHeight
 
-subroutine fillDepression(dem, fillp, wsh, graph, area, idloc, elev, dID, vol, cPit, m, nb)
+subroutine addExcess(elev, downSed, depLocal, m, n)
+!*****************************************************************************
+! Add excess sediment volume on pit nodes
+
+  use meshparams
+  implicit none
+
+  integer :: m, n
+  real( kind=8 ), intent(in) :: elev(m)
+  real( kind=8 ), intent(in) :: downSed(n,2)
+
+  real( kind=8 ), intent(out) :: depLocal(m)
+
+  integer :: k, id, c, p, nn
+  real( kind=8 ) :: zmin
+
+  depLocal = 0.
+
+  ! Update elevation on downstream node of spill over point
+  do k = 1, n
+    id = int(downSed(k,1))+1
+    zmin = elev(id)
+    c = id
+    do p = 1, FVnNb(id)
+      nn = FVnID(id,p)+1
+      if(elev(nn)<zmin)then
+        zmin = elev(nn)
+        c = nn
+      endif
+    enddo
+    depLocal(c) = depLocal(c) + downSed(k,2)
+  enddo
+
+  return
+
+end subroutine addExcess
+
+subroutine fillDepression(dem, dem0, fillp, wsh, graph, spillpit, area, idloc, elev, dID, vol, cPit, m, nb)
 !*****************************************************************************
 ! Fill depressions/flats from priority-flood calculation
 
@@ -216,17 +253,19 @@ subroutine fillDepression(dem, fillp, wsh, graph, area, idloc, elev, dID, vol, c
   integer :: m, nb
   integer, intent(in) :: wsh(m)
   real( kind=8 ), intent(in) :: dem(m)
+  real( kind=8 ), intent(in) :: dem0(m)
   real( kind=8 ), intent(in) :: area(m)
   integer, intent(in) :: idloc(m)
   real( kind=8 ), intent(in) :: fillp(m)
   real( kind=8 ), intent(in) :: graph(nb)
+  integer, intent(in) :: spillpit(nb)
 
   real( kind=8 ), intent(out) :: elev(m)
   real( kind=8 ), intent(out) :: vol(nb)
   integer, intent(out) :: cPit(nb,nb)
   integer, intent(out) :: dID(m)
 
-  integer :: k, nn, p, p1, p2
+  integer :: k, nn
   real( kind=8 ) :: fillwatershed
 
   dID = -1
@@ -235,30 +274,28 @@ subroutine fillDepression(dem, fillp, wsh, graph, area, idloc, elev, dID, vol, c
   do k = 1, m
     nn = wsh(k)+1
     fillwatershed = graph(nn)
-    if(dem(k) < fillp(k) .and. fillp(k) >= fillwatershed)then
+    if(dem(k) < fillp(k) .and. fillp(k) > fillwatershed)then
       elev(k) = fillp(k)
-    elseif(dem(k) < fillwatershed)then
+      dID(k) = nn-1
+    elseif(dem(k) <= fillwatershed)then
       elev(k) = fillwatershed
+      dID(k) = nn-1
     else
       elev(k) = dem(k)
     endif
-    if(dem(k)<=fillwatershed) dID(k) = nn-1
-    if(area(k)>0 .and. idloc(k)==1) vol(nn) = vol(nn) + (elev(k)-dem(k))*area(k)
+    if(area(k)>0 .and. idloc(k)==1)then
+      if(dem0(k)<elev(k)) vol(nn) = vol(nn) + (elev(k)-dem0(k))*area(k)
+    endif
   enddo
 
-  do k = 1, m
-    p1 = dID(k)+1
-    if(p1>0)then
-      do p = 1, FVnNb(k)
-        nn = FVnID(k,p)+1
-        p2 = dID(nn)+1
-        if(p2>0 .and. p1.ne.p2)then
-          if(elev(k)==elev(nn) .and. dem(nn)<fillwatershed)then
-            cPit(p1,p2) = 1
-            cPit(p2,p1) = 1
-          endif
-        endif
-      enddo
+  do k = 1, nb
+    if(spillpit(k)>0)then
+      if(graph(k)==graph(spillpit(k)+1))then
+        cPit(k,spillpit(k)+1) = 1
+        cPit(spillpit(k)+1,k) = 1
+      elseif(graph(k)>graph(spillpit(k)+1))then
+        cPit(k,k) = 1
+      endif
     endif
   enddo
 
@@ -302,9 +339,14 @@ subroutine combinePit(nb, m, cPit, locvol, pID, order, gPit, gID, gVol, gOver)
       if(cPit(k,p)>0 .and. ngbhArr(k,p) < 0)then
         ngbNb(k) = ngbNb(k)+1
         ngbhArr(k,p) = 1
-        ngbhArr(p,k) = 1
         tmp(k,ngbNb(k)) = p
+        if(ngbhArr(p,k) < 0)then
+          ngbNb(p) = ngbNb(p)+1
+          ngbhArr(p,k) = 1
+          tmp(p,ngbNb(p)) = k
+        endif
         exist(k) = .True.
+        exist(p) = .True.
       endif
     enddo
   enddo
@@ -324,7 +366,7 @@ subroutine combinePit(nb, m, cPit, locvol, pID, order, gPit, gID, gVol, gOver)
   vol = 0.
   do k = 1, nb
     if(gPit(k)>2*nb) write(*,*)'Problem of array size!'
-    if(locvol(k)>0.) vol(gPit(k)) = vol(gPit(k)) + locvol(k)
+    if(locvol(k)>0. .and. gPit(k)>0) vol(gPit(k)) = vol(gPit(k)) + locvol(k)
   enddo
 
   gVol = 0.
@@ -604,55 +646,6 @@ end subroutine setDiffusionCoeff2
 !! SEDIMENT DIFFUSION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine initDiffCoeff(nb, dt, Kds, Kdm, sC, sM, mindt)
-!*****************************************************************************
-! Initialise diffusion coefficients
-
-    use meshparams
-    implicit none
-
-    integer :: nb
-
-    real( kind=8 ), intent(in) :: dt
-    real( kind=8 ), intent(in) :: Kds
-    real( kind=8 ), intent(in) :: Kdm
-
-    real( kind=8 ), intent(out) :: sC(nb,12)
-    real( kind=8 ), intent(out) :: sM(nb,12)
-    real( kind=8 ), intent(out) :: mindt
-
-    integer :: k, p
-    real( kind=8 ) :: c1,c2,Kdmax
-
-    sC = 0.
-    sM = 0.
-
-    mindt = dt
-    Kdmax = Kds
-    if(Kds<Kdm) Kdmax = Kdm
-
-    do k = 1, nb
-      if(FVarea(k)>0.)then
-        c1 = Kds/FVarea(k)
-        c2 = Kdm/FVarea(k)
-        do p = 1, FVnNb(k)
-          if(FVvDist(k,p)>0. .and. FVeLgt(k,p)>0.)then
-            mindt = min(mindt,FVeLgt(k,p)*FVeLgt(k,p)*0.25/Kdmax)
-            sC(k,p) = c1*FVvDist(k,p)/FVeLgt(k,p)
-            sM(k,p) = c2*FVvDist(k,p)/FVeLgt(k,p)
-          endif
-        enddo
-      endif
-    enddo
-
-    mindt = max(1.,mindt)
-    sC = sC
-    sM = sM
-
-    return
-
-end subroutine initDiffCoeff
-
 subroutine diffusionDT(dm, hLocal, hL0, bounds, iters, itflx, inIDs, sFlux, sKd, &
                        oKd, sl, ierr, nb)
 !*****************************************************************************
@@ -787,7 +780,7 @@ end subroutine diffusionDT
 !! FLOW DIRECTION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine singlePit( inIDs, bounds, elev, nelev, nb)
+subroutine singlePit( inIDs, bounds, elev, nelev, shore, nb)
 !*****************************************************************************
 ! Remove single pit in local elevation grid
 
@@ -801,31 +794,33 @@ subroutine singlePit( inIDs, bounds, elev, nelev, nb)
   real( kind=8 ), intent(in) :: elev(nb)
 
   real( kind=8 ), intent(out) :: nelev(nb)
+  integer, intent(out) :: shore(nb)
 
   logical :: isPit
   integer :: k, n, p
-  real( kind=8 ) :: emax, emin
+  real( kind=8 ) :: emin
 
   nelev = elev
+  shore = 0
   do k = 1, nb
     emin = 1.e8
-    emax = -1.e8
     if(inIDs(k)>0 .and. bounds(k)==0)then
       isPit = .True.
-      lp: do p = 1, FVnNb(k)
+      do p = 1, FVnNb(k)
         n = FVnID(k,p)+1
         if(n>0 .and. FVeLgt(k,p)>0.)then
+          if(shore(k)==0  .and. elev(k)>0. .and. elev(n)<=0.)then
+            shore(k) = 1
+          endif
           if(elev(k)>elev(n))then
             isPit = .False.
-            exit lp
           else
-            emax = max(emax,elev(n))
             emin = min(emin,elev(n))
           endif
         endif
-      enddo lp
+      enddo
       if(isPit)then
-        nelev(k) = emin+1.e-4 !(emax-emin)*0.5
+        nelev(k) = emin+1.e-4
       endif
     endif
   enddo
@@ -834,7 +829,7 @@ subroutine singlePit( inIDs, bounds, elev, nelev, nb)
 
 end subroutine singlePit
 
-subroutine MFDreceivers( nRcv, inIDs, elev, rcv, shore, slope, dist, wgt, nb)
+subroutine MFDreceivers( nRcv, inIDs, elev, rcv, slope, dist, wgt, nb)
 !*****************************************************************************
 ! Compute receiver characteristics based on multiple flow direction algorithm
 
@@ -855,7 +850,6 @@ subroutine MFDreceivers( nRcv, inIDs, elev, rcv, shore, slope, dist, wgt, nb)
   integer, intent(in) :: inIDs(nb)
   real( kind=8 ), intent(in) :: elev(nb)
 
-  integer, intent(out) :: shore(nb)
   integer, intent(out) :: rcv(nb,nRcv)
   real( kind=8 ), intent(out) :: slope(nb,nRcv)
   real( kind=8 ), intent(out) :: dist(nb,nRcv)
@@ -866,7 +860,6 @@ subroutine MFDreceivers( nRcv, inIDs, elev, rcv, shore, slope, dist, wgt, nb)
   integer :: id(12)
 
   rcv = -1
-  shore = 0
   slope = 0.
   dist = 0.
   wgt = 0.
@@ -881,9 +874,6 @@ subroutine MFDreceivers( nRcv, inIDs, elev, rcv, shore, slope, dist, wgt, nb)
         n = FVnID(k,p)+1
         if(n>0 .and. FVeLgt(k,p)>0.)then
           val = (elev(k) - elev(n))/FVeLgt(k,p)
-          if(shore(k)==0  .and. elev(k)>0. .and. elev(n) <= 0.)then
-            shore(k) = 1
-          endif
           if(val>0.)then
             kk = kk + 1
             slp(kk) = val

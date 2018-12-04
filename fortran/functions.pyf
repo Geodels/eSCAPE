@@ -1,3 +1,4 @@
+
 !    -*- f90 -*-
 ! Note: the context of this file is case sensitive.
 
@@ -30,12 +31,24 @@ python module _fortran ! in
 
       end subroutine pitHeight
 
-      subroutine fillDepression(dem,fillp,wsh,graph,area,idloc,elev,dID,vol,cPit,m,nb)
+      subroutine addExcess(elev,downsed,deplocal,m,n)
+
+        real(kind=8) dimension(m),intent(in) :: elev
+        real(kind=8) dimension(n,2),intent(in) :: downsed
+        real(kind=8) dimension(m),intent(out),depend(m) :: deplocal
+        integer, optional,check(len(elev)>=m),depend(elev) :: m=len(elev)
+        integer, optional,check(len(downsed)>=n),depend(downsed) :: n=len(downsed)
+
+      end subroutine addExcess
+
+      subroutine fillDepression(dem,dem0,fillp,wsh,graph,spillpit,area,idloc,elev,dID,vol,cPit,m,nb)
 
           real(kind=8) dimension(m),intent(in) :: dem
+          real(kind=8) dimension(m),intent(in) :: dem0
           real(kind=8) dimension(m),intent(in),depend(m) :: fillp
           integer dimension(m),intent(in),depend(m) :: wsh
           real(kind=8) dimension(nb),intent(in) :: graph
+          integer dimension(nb),intent(in) :: spillpit
           real(kind=8) dimension(m),intent(in),depend(m) :: area
           integer dimension(m),intent(in),depend(m) :: idloc
           real(kind=8) dimension(m),intent(out),depend(m) :: elev
@@ -118,32 +131,6 @@ python module _fortran ! in
 
       end subroutine setDiffusionCoeff
 
-      !subroutine setDiffusionCoeff2(kd,elev,dh,dcoeff,nb)
-
-      !    real(kind=8) intent(in) :: kd
-      !    real(kind=8) dimension(nb),intent(in) :: elev
-      !    real(kind=8) dimension(nb),intent(in) :: dh
-      !    real(kind=8) dimension(nb,13),intent(out),depend(nb) :: dcoeff
-      !    integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
-
-      !end subroutine setDiffusionCoeff2
-
-      subroutine initDiffCoeff(nb,dt,kds,kdm,sc,sm,mindt)
-
-          integer intent(in) :: nb
-          real(kind=8) intent(in) :: dt
-          real(kind=8) intent(in) :: kds
-          real(kind=8) intent(in) :: kdm
-          real(kind=8) dimension(nb),intent(in) :: area
-          integer dimension(nb),intent(in),depend(nb) :: ngbnb
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: lgth
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: vlgth
-          real(kind=8) dimension(nb,12),intent(out),depend(nb) :: sc
-          real(kind=8) dimension(nb,12),intent(out),depend(nb) :: sm
-          real(kind=8) intent(out) :: mindt
-
-      end subroutine initDiffCoeff
-
       subroutine diffusionDT(dm,hlocal,hl0,bounds,iters,itflx,inids,sflux,skd,okd,sl,ierr,nb)
 
         integer(kind=HANDLE_KIND), intent(in)  :: dm
@@ -171,23 +158,23 @@ python module _fortran ! in
 
       end subroutine minHeight
 
-      subroutine singlePit(inids,bounds,elev,nelev,nb)
+      subroutine singlePit(inids,bounds,elev,nelev,shore,nb)
 
           integer dimension(nb),intent(in) :: inids
           integer dimension(nb),intent(in) :: bounds
           real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
           real(kind=8) dimension(nb),intent(out),depend(nb) :: nelev
+          integer dimension(nb),intent(out),depend(nb) :: shore
           integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
 
       end subroutine singlePit
 
-      subroutine MFDreceivers(nrcv,inids,elev,rcv,shore,slope,dist,wgt,nb)
+      subroutine MFDreceivers(nrcv,inids,elev,rcv,slope,dist,wgt,nb)
 
           integer intent(in) :: nrcv
           integer dimension(nb),intent(in) :: inids
           real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
           integer dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: rcv
-          integer dimension(nb),intent(out),depend(nb) :: shore
           real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: slope
           real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: dist
           real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: wgt

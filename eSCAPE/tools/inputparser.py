@@ -308,10 +308,6 @@ class ReadYaml(object):
             except KeyError as exc:
                 self.vland = 1.0
             try:
-                self.vsea = spdDict['vsM']
-            except KeyError as exc:
-                self.vsea = 100.0
-            try:
                 self.frac_fine = spdDict['Ff']
             except KeyError as exc:
                 self.frac_fine = 0.0
@@ -328,7 +324,6 @@ class ReadYaml(object):
                 self.Hstar = 1.0
         except KeyError as exc:
             self.vland = 1.0
-            self.vsea = 5.0
             self.frac_fine = 0.0
             self.phi = 0.0
             self.Hstar = 1.0
@@ -348,21 +343,21 @@ class ReadYaml(object):
                 print("When declaring diffusion processes, the coefficient hillslopeK is required.")
                 raise ValueError('Hillslope: Cd coefficient not found.')
             try:
-                self.streamCd = hillDict['streamK']
+                self.sedimentK = hillDict['sedimentK']
             except KeyError as exc:
-                self.streamCd = 100.
+                self.sedimentK = 10.
             try:
-                self.oceanCd = hillDict['oceanK']
+                self.marineSlope = hillDict['marineSlope']
             except KeyError as exc:
-                self.oceanCd = 50.
+                self.marineSlope = 1.e-4
             try:
                 self.minIters = hillDict['minIT']
             except KeyError as exc:
                 self.minIters = 1
         except KeyError as exc:
             self.Cd = 0.
-            self.streamCd = 100.
-            self.oceanCd = 10.
+            self.sedimentK = 10.
+            self.marineSlope = 1.e-4
             self.minIters = 1
 
         if self.minIters < 10:

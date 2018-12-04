@@ -157,8 +157,10 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
 
                 # Find depressions chracteristics (volume and spill-over nodes)
                 if self.frac_fine < 1.:
-                    _UnstPit.defineDepressionParameters(self)
+                    _UnstPit.computeDepression(self)
 
+                # _WriteMesh.outputMesh(self, remesh=False)
+                # dedede
                 # Apply diffusion to deposited sediments
                 if self.frac_fine < 1.:
                     _SPMesh.SedimentDiffusion(self)
