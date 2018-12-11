@@ -41,10 +41,9 @@ python module _fortran ! in
 
       end subroutine addExcess
 
-      subroutine fillDepression(dem,dem0,fillp,wsh,graph,spillpit,area,idloc,elev,dID,vol,cPit,m,nb)
+      subroutine fillDepression(dem,fillp,wsh,graph,spillpit,area,idloc,elev,dID,vol,cPit,m,nb)
 
           real(kind=8) dimension(m),intent(in) :: dem
-          real(kind=8) dimension(m),intent(in) :: dem0
           real(kind=8) dimension(m),intent(in),depend(m) :: fillp
           integer dimension(m),intent(in),depend(m) :: wsh
           real(kind=8) dimension(nb),intent(in) :: graph
@@ -121,15 +120,42 @@ python module _fortran ! in
 
       end subroutine setHillslopeCoeff
 
-      subroutine setDiffusionCoeff(kd,elev,dh,nelev,nb)
+      subroutine setDiffusionCoeff(kd,limit,elev,elev0,dh,dcoeff,nb)
 
           real(kind=8) intent(in) :: kd
+          real(kind=8) intent(in) :: limit
           real(kind=8) dimension(nb),intent(in) :: elev
+          real(kind=8) dimension(nb),intent(in) :: elev0
           real(kind=8) dimension(nb),intent(in) :: dh
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: nelev
+          real(kind=8) dimension(nb,13),intent(out),depend(nb) :: dcoeff
           integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
 
       end subroutine setDiffusionCoeff
+
+      subroutine distributeHeight(inids,sl,elev,elev0,sed,nelev,nsed,nb)
+
+          integer dimension(nb),intent(in) :: inids
+          real(kind=8) intent(in) :: sl
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: sed
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: nelev
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: nsed
+          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine distributeHeight
+
+      subroutine distributeVolume(inids,sl,elev,elev0, sed,nsed,nb)
+
+          integer dimension(nb),intent(in) :: inids
+          real(kind=8) intent(in) :: sl
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: sed
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: nsed
+          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine distributeVolume
 
       subroutine diffusionDT(dm,hlocal,hl0,bounds,iters,itflx,inids,sflux,skd,okd,sl,ierr,nb)
 

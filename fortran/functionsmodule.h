@@ -7,6 +7,8 @@
 #define  flatBounds  flatbounds
 #define  slpBounds  slpbounds
 #define  setDiffusionCoeff  setdiffusioncoeff
+#define  distributeHeight   distributeheight
+#define  distributeVolume   distributevolume
 #define  setHillslopeCoeff  sethillslopecoeff
 #define  diffusionDT  diffusiondt
 #define  minHeight   minheight
@@ -23,6 +25,8 @@
 #define  flatBounds_  flatbounds_
 #define  slpBounds_  slpbounds_
 #define  setDiffusionCoeff_   setdiffusioncoeff_
+#define  distributeHeight_   distributeheight_
+#define  distributeVolume_   distributevolume_
 #define  setHillslopeCoeff_   sethillslopecoeff_
 #define  diffusionDT_  diffusiondt_
 #define  minHeight_   minheight_
@@ -39,6 +43,8 @@
 #define  _flatBounds  _flatbounds
 #define  _slpBounds  _slpbounds
 #define  _setDiffusionCoeff   _setdiffusioncoeff
+#define  _distributeHeight   _distributeheight
+#define  _distributeVolume   _distributevolume
 #define  _setHillslopeCoeff   _sethillslopecoeff
 #define  _diffusionDT  _diffusiondt
 #define  _minHeight   _minheight
@@ -55,6 +61,8 @@
 #define  _flatBounds_  _flatbounds_
 #define  _slpBounds_  _slpbounds_
 #define  _setDiffusionCoeff_   _setdiffusioncoeff_
+#define  _distributeHeight_   _distributeheight_
+#define  _distributeVolume_   _distributevolume_
 #define  _setHillslopeCoeff_   _sethillslopecoeff_
 #define  _diffusionDT_  _diffusiondt_
 #define  _minHeight_   _minheight_

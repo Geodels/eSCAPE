@@ -12,7 +12,7 @@
 ! GNU Lesser General Public License for more details.
 !
 ! You should have received a copy of the GNU Lesser General Public License
-! along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>. 
+! along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
 
 ! f2py --overwrite-signature -m _fortran -h functions.pyf functions.f90
 
@@ -150,6 +150,7 @@ subroutine pitVolume(depLocal, pitIDG, nb, volDep, m)
 !*****************************************************************************
 ! Get local volume of sediment deposited on each pit
 
+  use meshparams
   implicit none
 
   integer :: m
@@ -243,7 +244,7 @@ subroutine addExcess(elev, downSed, depLocal, m, n)
 
 end subroutine addExcess
 
-subroutine fillDepression(dem, dem0, fillp, wsh, graph, spillpit, area, idloc, elev, dID, vol, cPit, m, nb)
+subroutine fillDepression(dem, fillp, wsh, graph, spillpit, area, idloc, elev, dID, vol, cPit, m, nb)
 !*****************************************************************************
 ! Fill depressions/flats from priority-flood calculation
 
@@ -253,7 +254,6 @@ subroutine fillDepression(dem, dem0, fillp, wsh, graph, spillpit, area, idloc, e
   integer :: m, nb
   integer, intent(in) :: wsh(m)
   real( kind=8 ), intent(in) :: dem(m)
-  real( kind=8 ), intent(in) :: dem0(m)
   real( kind=8 ), intent(in) :: area(m)
   integer, intent(in) :: idloc(m)
   real( kind=8 ), intent(in) :: fillp(m)
@@ -284,7 +284,7 @@ subroutine fillDepression(dem, dem0, fillp, wsh, graph, spillpit, area, idloc, e
       elev(k) = dem(k)
     endif
     if(area(k)>0 .and. idloc(k)==1)then
-      if(dem0(k)<elev(k)) vol(nn) = vol(nn) + (elev(k)-dem0(k))*area(k)
+      vol(nn) = vol(nn) + (elev(k)-dem(k))*area(k)
     endif
   enddo
 
@@ -554,9 +554,9 @@ subroutine setHillslopeCoeff(nb, Kd, dcoeff)
 
 end subroutine setHillslopeCoeff
 
-subroutine setDiffusionCoeff(Kd, elev, dh, nelev, nb)
+subroutine setDiffusionCoeff(Kd, limit, elev, elev0, dh, dcoeff, nb)
 !*****************************************************************************
-! Define freshly deposited sediments diffusion matrix coefficients
+! Define freshly deposited sediments diffusion implicit matrix coefficients
 
     use meshparams
     implicit none
@@ -564,51 +564,9 @@ subroutine setDiffusionCoeff(Kd, elev, dh, nelev, nb)
     integer :: nb
 
     real( kind=8 ), intent(in) :: Kd
+    real( kind=8 ), intent(in) :: limit
     real( kind=8 ), intent(in) :: elev(nb)
-    real( kind=8 ), intent(in) :: dh(nb)
-
-    real( kind=8 ), intent(out) :: nelev(nb)
-
-    integer :: k, p, n
-    real( kind=8 ) :: s1, c, v, limiter , val
-
-    do k = 1, nb
-      s1 = 0.
-      val = 0.
-      if(FVarea(k)>0)then
-        c = Kd/FVarea(k)
-        do p = 1, FVnNb(k)
-          if(FVvDist(k,p)>0.)then
-            v = c*FVvDist(k,p)/FVeLgt(k,p)
-            n = FVnID(k,p)+1
-            if(elev(n)>elev(k))then
-              limiter = dh(n)/(dh(n)+1.e-3)
-            else
-              limiter = dh(k)/(dh(k)+1.e-3)
-            endif
-            s1 = s1 + v*limiter
-            val = val + v*limiter*elev(n)
-          endif
-        enddo
-        nelev(k) = (1.0 - s1)*elev(k) + val
-      endif
-    enddo
-
-    return
-
-end subroutine setDiffusionCoeff
-
-subroutine setDiffusionCoeff2(Kd, elev, dh, dcoeff, nb)
-!*****************************************************************************
-! Define freshly deposited sediments diffusion matrix coefficients
-
-    use meshparams
-    implicit none
-
-    integer :: nb
-
-    real( kind=8 ), intent(in) :: Kd
-    real( kind=8 ), intent(in) :: elev(nb)
+    real( kind=8 ), intent(in) :: elev0(nb)
     real( kind=8 ), intent(in) :: dh(nb)
 
     real( kind=8 ), intent(out) :: dcoeff(nb,13)
@@ -625,10 +583,11 @@ subroutine setDiffusionCoeff2(Kd, elev, dh, dcoeff, nb)
           if(FVvDist(k,p)>0.)then
             v = c*FVvDist(k,p)/FVeLgt(k,p)
             n = FVnID(k,p)+1
-            if(elev(n)>elev(k))then
-              limiter = dh(n)/(dh(n)+1.e-3)
-            else
-              limiter = dh(k)/(dh(k)+1.e-3)
+            limiter = 0.
+            if(elev(n)>elev(k) .and. elev0(k)<0.)then
+              limiter = dh(n)/(dh(n)+limit)
+            elseif(elev(n)<=elev(k) .and. elev0(n)<0.)then ! elev(k)>elev0(k))then
+              limiter = dh(k)/(dh(k)+limit)
             endif
             s1 = s1 + v*limiter
             dcoeff(k,p+1) = -v*limiter
@@ -640,7 +599,133 @@ subroutine setDiffusionCoeff2(Kd, elev, dh, dcoeff, nb)
 
     return
 
-end subroutine setDiffusionCoeff2
+end subroutine setDiffusionCoeff
+
+subroutine distributeHeight( inIDs, sl, elev, elev0, sed, nelev, nsed, nb )
+!*****************************************************************************
+! Update elevation based on incoming sedimentary volume
+
+  use meshparams
+  implicit none
+
+  integer :: nb
+
+  integer, intent(in) :: inIDs(nb)
+  real( kind=8 ), intent(in) :: sl
+  real( kind=8 ), intent(in) :: elev(nb)
+  real( kind=8 ), intent(in) :: elev0(nb)
+  real( kind=8 ), intent(in) :: sed(nb)
+
+  real( kind=8 ), intent(out) :: nelev(nb)
+  real( kind=8 ), intent(out) :: nsed(nb)
+
+  integer :: k,p,n,nbr
+  real( kind=8 ) :: hmax,dh,dv
+
+  nelev = elev
+  nsed = sed
+  do k = 1, nb
+    if(inIDs(k)>0)then
+      ! Deposition on the local node
+      if(sed(k)>0)then
+        nbr = 0
+        hmax = 1.e8
+        if(elev0(k)<sl)  hmax = elev(k)
+        do p = 1, FVnNb(k)
+          n = FVnID(k,p)+1
+          if(elev0(k)<sl)then
+            if(elev(n)<sl .and. elev(n)>elev(k))then
+              hmax = max(elev(n)-1.e-3,hmax)
+            endif
+            if(elev(n)<elev(k)) nbr = nbr+1
+          else
+            if(elev(n)>elev(k))  hmax = min(hmax,elev(n)-1.e-3)
+            if(elev(n)<elev(k)) nbr = nbr+1
+          endif
+        enddo
+        if(elev0(k)<sl .and. hmax==elev(k) .and. nbr == 0) hmax = hmax + 1.e-4
+        if(elev0(k)>=sl .and. hmax==elev(k) .and. nbr == 0) hmax = hmax + 1.e-4
+        if(elev0(k)<sl) hmax = min(hmax,0.1*(sl-elev(k))+elev(k))
+        if(elev(k)<hmax)then
+          dh = (hmax-elev(k))
+          dv = dh*FVarea(k)
+          if(dv>sed(k))then
+            nelev(k) = elev(k)+sed(k)/FVarea(k)
+            nsed(k) = 0.
+          else
+            nelev(k) = elev(k)+dh
+            nsed(k) = sed(k) - dv
+          endif
+        endif
+      endif
+    endif
+  enddo
+
+  return
+
+end subroutine distributeHeight
+
+subroutine distributeVolume( inIDs, sl, elev, elev0, sed, nsed, nb )
+!*****************************************************************************
+! Compute remaining volume to distribute
+
+  use meshparams
+  implicit none
+
+  integer :: nb
+
+  integer, intent(in) :: inIDs(nb)
+  real( kind=8 ), intent(in) :: sl
+  real( kind=8 ), intent(in) :: elev(nb)
+  real( kind=8 ), intent(in) :: elev0(nb)
+  real( kind=8 ), intent(in) :: sed(nb)
+
+  real( kind=8 ), intent(out) :: nsed(nb)
+
+  integer :: k,p,n,nbr,num
+  real( kind=8 ) :: prop
+
+  nsed = 0.
+  do k = 1, nb
+    if(inIDs(k)>=0)then
+      if(sed(k)>0)then
+        nbr = 0
+        num = 0
+        do p = 1, FVnNb(k)
+          n = FVnID(k,p)+1
+          if(elev0(k)<sl .and. elev(n) < sl) num = num+1
+          if(elev(n)<elev(k)) nbr = nbr+1
+        enddo
+        if(nbr>0)then
+          prop = sed(k)/nbr
+          do p = 1, FVnNb(k)
+            n = FVnID(k,p)+1
+            if(elev(n)<elev(k)) nsed(n) = nsed(n) + prop
+          enddo
+        else
+          if(elev0(k)<sl .and. num>0)then
+            prop = sed(k)/(num+1)
+          else
+            nbr = FVnNb(k)+1
+            prop = sed(k)/nbr
+          endif
+          nsed(k) = nsed(k) + prop
+          do p = 1, FVnNb(k)
+            n = FVnID(k,p)+1
+            if(num>0)then
+              if(elev(n)<sl) nsed(n) = nsed(n) + prop
+            else
+              nsed(n) = nsed(n) + prop
+            endif
+          enddo
+        endif
+      endif
+    endif
+  enddo
+
+  return
+
+end subroutine distributeVolume
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! SEDIMENT DIFFUSION FUNCTIONS !!
@@ -699,7 +784,7 @@ subroutine diffusionDT(dm, hLocal, hL0, bounds, iters, itflx, inIDs, sFlux, sKd,
     do k = 1, nb
       Cero(k) = 1.0
       val0 = 0.
-      if(inIDs(k)>0)then
+      if(inIDs(k)>=0)then
         do p = 1, FVnNb(k)
           n = FVnID(k,p)+1
           kd = sKd(k,p)
@@ -804,7 +889,7 @@ subroutine singlePit( inIDs, bounds, elev, nelev, shore, nb)
   shore = 0
   do k = 1, nb
     emin = 1.e8
-    if(inIDs(k)>0 .and. bounds(k)==0)then
+    if(inIDs(k)>=0 .and. bounds(k)==0)then
       isPit = .True.
       do p = 1, FVnNb(k)
         n = FVnID(k,p)+1
@@ -820,7 +905,7 @@ subroutine singlePit( inIDs, bounds, elev, nelev, shore, nb)
         endif
       enddo
       if(isPit)then
-        nelev(k) = emin+1.e-4
+        nelev(k) = emin+1.e-6
       endif
     endif
   enddo
@@ -883,7 +968,7 @@ subroutine MFDreceivers( nRcv, inIDs, elev, rcv, slope, dist, wgt, nb)
         endif
       enddo
 
-      if(kk == 0)then
+      if(kk == 0 .or. elev(k)<=0.)then
         rcv(k,1:nRcv) = k-1
       elseif(kk <= nRcv)then
         val = 0.
@@ -938,8 +1023,8 @@ subroutine minHeight( inIDs, elev, hmin, nb)
 
   hmin = 0.
   do k = 1, nb
-    if(inIDs(k)>0)then
-      hmin(k) = 1.e5
+    if(inIDs(k)>=0)then
+      hmin(k) = 1.e8
       do p = 1, FVnNb(k)
         n = FVnID(k,p)+1
         if(n>0 .and. FVeLgt(k,p)>0.)then
@@ -948,7 +1033,7 @@ subroutine minHeight( inIDs, elev, hmin, nb)
           endif
         endif
       enddo
-      if(hmin(k) > 4.9e4) hmin(k) = 0.
+      if(hmin(k) > 9.9e7) hmin(k) = 0.
     endif
   enddo
 

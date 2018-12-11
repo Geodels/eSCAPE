@@ -159,12 +159,12 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
                 if self.frac_fine < 1.:
                     _UnstPit.computeDepression(self)
 
-                # _WriteMesh.outputMesh(self, remesh=False)
-                # dedede
                 # Apply diffusion to deposited sediments
                 if self.frac_fine < 1.:
                     _SPMesh.SedimentDiffusion(self)
 
+                # _WriteMesh.outputMesh(self, remesh=False)
+                # dedede
                 # Compute Hillslope Diffusion Law
                 _SPMesh.HillSlope(self)
 

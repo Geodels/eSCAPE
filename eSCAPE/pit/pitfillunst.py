@@ -55,12 +55,6 @@ class UnstPit(object):
         self.watershedGlobal = self.dm.createGlobalVector()
         self.watershedLocal = self.dm.createLocalVector()
 
-        self.sfdRcv = self.dm.createGlobalVector()
-        self.sfdRcvLocal = self.dm.createLocalVector()
-
-        self.globID = self.dm.createGlobalVector()
-        self.globIDLocal = self.dm.createLocalVector()
-
         # Construct pit filling algorithm vertex indices
         vIS = self.dm.getVertexNumbering()
 
@@ -96,6 +90,7 @@ class UnstPit(object):
         del GIDs
         tmpG.destroy()
         tmpL.destroy()
+
         # Local points that will be used to update watershed spill over points
         self.idLocalComm = np.unique(self.lcells[out].flatten()[ids])
 
@@ -114,15 +109,17 @@ class UnstPit(object):
 
         t0 = clock()
         self.sl_limit = self.sealevel-self.sealimit
-        fillZ = self.fhLocal.getArray()+self.sealimit
+        fillZ = self.hLocal.getArray()+self.sealimit
         self.fillLocal.setArray(fillZ)
         self.dm.localToGlobal(self.fillLocal, self.fillGlobal, 1)
         self.dm.globalToLocal(self.fillGlobal, self.fillLocal, 1)
         elev = self.hLocal.getArray().copy()
         seaIDs = np.where(elev<self.sl_limit)
+
         # Perform priority-flood on local domain
         watershed = np.zeros((fillZ.shape),dtype=int)
         fillZ = self.fillLocal.getArray()
+
         if self.first == 2:
             lcoords = self.lcoords.copy()
             lcoords[:,2] = fillZ
@@ -134,6 +131,7 @@ class UnstPit(object):
         else:
             self.eScapePit = fillAlgo.depressionFillingScape(Z=fillZ, seaIDs=seaIDs, first=self.first)
         fillZ, watershed, graph = self.eScapePit.performPitFillingUnstruct(simple=False)
+
         del seaIDs
 
         # Define globally unique watershed index
@@ -216,10 +214,10 @@ class UnstPit(object):
         del ids2
 
         # Define global solution by combining depressions/flat together
-        fillZ, self.pitIDs, pitVol, combPit = fillDepression(self.fhLocal.getArray(), self.hLocal.getArray(),
-                                                             fillZ-self.sealimit, watershed.astype(int),
-                                                             self.graph[:,0], self.graph[:,3].astype(int),
-                                                             self.FVmesh_area, self.inIDs)
+        fillZ, self.pitIDs, pitVol, combPit = fillDepression(self.hLocal.getArray(), fillZ-self.sealimit,
+                                                             watershed.astype(int), self.graph[:,0],
+                                                             self.graph[:,3].astype(int), self.FVmesh_area,
+                                                             self.inIDs)
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, pitVol, op=MPI.MAX)
 
         gPit, self.pitIDG, gVol, gOver = combinePit(len(combPit), len(self.pitIDs), combPit, pitVol,
@@ -259,30 +257,34 @@ class UnstPit(object):
         Perform pit filling based on eroded sediment volume.
         """
 
+        # Find the deposited volume in each depression
+        pitDep = self.vLoc.getArray()
+
         elev = self.hLocal.getArray()
         fillZ = self.fillLocal.getArray()
         cumed = self.cumEDLocal.getArray()
-
-        # Find the deposited volume in each depression
-        # vol = self.vSedLocal.getArray()
-        # pitDep = np.zeros(self.npoints)
-        # pitDep[self.pitID] = np.divide(vol[self.pitID]*self.dt,1.0-self.phi)
-        pitDep = self.vLoc.getArray()
 
         # Remove deposits on the domain boundary
         pitDep[self.idGBounds] = 0.
 
         # Compute cumulative deposition on each depression globally
         depLocal = np.zeros(self.npoints)
+        hAdd = depLocal.copy()
         depLocal[self.idLocal] = pitDep[self.idLocal]
 
         nonzeroDep = np.where(depLocal>0)[0]
         definedPit = np.where(self.pitIDG>0)[0]
         isnt = np.isin(nonzeroDep,definedPit,invert=True)
+
         if np.sum(isnt) > 0:
-            hmax = depLocal[nonzeroDep[isnt]].max()
-            if hmax > 1.e-4:
+            ids = nonzeroDep[isnt]
+            nids = self.FVmesh_ngbID[ids,:]
+            hAdd[nonzeroDep[isnt]] = np.divide(depLocal[nonzeroDep[isnt]], self.FVmesh_area[nonzeroDep[isnt]],
+                                out=np.zeros_like(hAdd[nonzeroDep[isnt]]), where=self.FVmesh_area[nonzeroDep[isnt]]!=0)
+            hAdd[nonzeroDep[isnt]] = 0.
+            if hAdd.max() > 1.e-4:
                 print('Warning: Some pits are not defined as being part of a depression!')
+            depLocal[nonzeroDep[isnt]] = 0.
         del isnt,nonzeroDep,definedPit
 
         pitsedVol = pitVolume(depLocal,self.pitIDG,self.pitDef[:,0].max()+1)
@@ -311,6 +313,7 @@ class UnstPit(object):
         newZ = pitHeight(elev, fillZ, self.pitIDG, perc)
 
         # Update elevation and cumulative erosion/deposition
+        newZ += hAdd
         cumed += newZ-elev
         self.hLocal.setArray(newZ)
         self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
@@ -320,7 +323,7 @@ class UnstPit(object):
         self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
 
         # Move excess sediment volume to the downstream node of the overspill node...
-        ids = np.where(remainSed>0)[0]
+        ids = np.where(remainSed>0.)[0]
 
         if len(ids) == 0:
             del pitDep, elev, fillZ, cumed, newZ, ids
@@ -329,24 +332,20 @@ class UnstPit(object):
                 print('Fill Pit Depression (%0.02f seconds)'% (clock() - t0))
             return False
 
-        ids = np.where(remainSed>0.)[0]
         downSed = np.zeros((len(ids),3))
         downSed[:,0] = self.pitDef[ids,2]
         downSed[:,1] = self.pitDef[ids,1]
         downSed[:,2] = remainSed[ids]
-
         keep = downSed[:,0].astype(int) == MPIrank
         if np.sum(keep)>0:
             depLocal = addExcess(newZ, downSed[keep,1:])
         else:
             depLocal = np.zeros(self.npoints)
-
         self.diffDepLocal.setArray(np.divide(depLocal,self.dt))
         self.dm.localToGlobal(self.diffDepLocal, self.diffDep, 1)
         self.dm.globalToLocal(self.diffDep, self.diffDepLocal, 1)
-
         del pitDep, elev, fillZ, cumed, newZ, ids, downSed
-        del perc, percDep, remainSed, keep, depLocal
+        del perc, percDep, remainSed, keep, depLocal, hAdd
 
         if MPIrank == 0 and self.verbose:
             print('Fill Pit Depression (%0.02f seconds)'% (clock() - t0))
@@ -358,18 +357,22 @@ class UnstPit(object):
         Successively fill depression until all deposits in depressions are distributed.
         """
 
+        # Find the deposited volume in each depression
+        if self.vGlob.max()[1] == 0.:
+            return
+
         iters = 0
         self._defineDepressionParameters()
         keepFilling = self._depositDepression()
-
         while(keepFilling):
             self.downstreamDistribute(depoForce=False)
-            # self._defineDepressionParameters()
+            self._defineDepressionParameters()
             keepFilling = self._depositDepression()
             iters += 1
-            if iters>50:
+            if iters>100:
                 keepFilling = False
 
-        self.downstreamDistribute(depoForce=True)
+        if self.diffDep.max()>0.:
+            self.downstreamDistribute(depoForce=True)
 
         return

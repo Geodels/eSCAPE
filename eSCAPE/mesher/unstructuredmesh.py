@@ -134,8 +134,6 @@ class UnstMesh(object):
         self.cumED.set(0.0)
         self.cumEDLocal = self.hLocal.duplicate()
         self.cumEDLocal.set(0.0)
-        self.bSlope = self.hLocal.duplicate()
-        self.bSlope.set(0.0)
 
         self.Es = self.hGlobal.duplicate()
         self.Es.set(0.0)
@@ -479,11 +477,12 @@ class UnstMesh(object):
         self.bG.destroy()
         self.hOld.destroy()
         self.hOldLocal.destroy()
+
         self.cumED.destroy()
         self.cumEDLocal.destroy()
-        self.bSlope.destroy()
         self.drainArea.destroy()
         self.drainAreaLocal.destroy()
+
         self.vSed.destroy()
         self.vSedLocal.destroy()
         self.stepED.destroy()
@@ -492,10 +491,9 @@ class UnstMesh(object):
         self.diffDepLocal.destroy()
         self.hLocal.destroy()
         self.hGlobal.destroy()
-        self.fhGlobal.destroy()
-        self.fhLocal.destroy()
         self.fillGlobal.destroy()
         self.fillLocal.destroy()
+
         self.Es.destroy()
         self.Eb.destroy()
         self.EsLocal.destroy()
@@ -504,28 +502,22 @@ class UnstMesh(object):
         self.HsoilLocal.destroy()
         self.watershedGlobal.destroy()
         self.watershedLocal.destroy()
+
         self.iMat.destroy()
         self.lgmap_col.destroy()
         self.lgmap_row.destroy()
         if self.Cd > 0.:
             self.Diff.destroy()
         del self.lcoords
-        self.hG0.destroy()
-        self.hL0.destroy()
-        self.cumED0.destroy()
-        self.Hsoil0.destroy()
+
         self.vLoc.destroy()
         self.vecG.destroy()
         self.vecL.destroy()
+        self.seaG.destroy()
+        self.seaL.destroy()
         self.tmpG.destroy()
         self.tmpL.destroy()
-        self.tmpSG.destroy()
-        self.tmpSL.destroy()
         self.vGlob.destroy()
-        self.sfdRcvLocal.destroy()
-        self.sfdRcv.destroy()
-        self.globID.destroy()
-        self.globIDLocal.destroy()
         self.dm.destroy()
 
     	if MPIrank == 0 and self.verbose:

@@ -347,21 +347,13 @@ class ReadYaml(object):
             except KeyError as exc:
                 self.sedimentK = 10.
             try:
-                self.marineSlope = hillDict['marineSlope']
+                self.maxIters = hillDict['maxIT']
             except KeyError as exc:
-                self.marineSlope = 1.e-4
-            try:
-                self.minIters = hillDict['minIT']
-            except KeyError as exc:
-                self.minIters = 1
+                self.maxIters = 0
         except KeyError as exc:
             self.Cd = 0.
             self.sedimentK = 10.
-            self.marineSlope = 1.e-4
-            self.minIters = 1
-
-        if self.minIters < 10:
-            self.minIters = 1
+            self.maxIters = 500
 
         return
 
