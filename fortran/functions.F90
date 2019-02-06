@@ -142,253 +142,6 @@ subroutine split(array, low, high, mid, indices)
 
 end subroutine split
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!! PIT FILLING RELATED FUNCTIONS !!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-subroutine pitVolume(depLocal, pitIDG, nb, volDep, m)
-!*****************************************************************************
-! Get local volume of sediment deposited on each pit
-
-  use meshparams
-  implicit none
-
-  integer :: m
-  integer, intent(in) :: nb
-  real( kind=8 ), intent(in) :: depLocal(m)
-  integer, intent(in) :: pitIDG(m)
-
-  real( kind=8 ), intent(out) :: volDep(nb)
-
-  integer :: k
-
-  volDep = 0.
-  do k = 1, m
-    if(depLocal(k)>0 .and. pitIDG(k)>0)then
-      volDep(pitIDG(k)+1) = volDep(pitIDG(k)+1)+depLocal(k)
-    endif
-  enddo
-
-  return
-
-end subroutine pitVolume
-
-subroutine pitHeight(elev, fillZ, pitIDG, percDep, newZ, m, nb)
-!*****************************************************************************
-! Update elevation on each pit
-
-  implicit none
-
-  integer :: m, nb
-  real( kind=8 ), intent(in) :: elev(m)
-  real( kind=8 ), intent(in) :: fillZ(m)
-  integer, intent(in) :: pitIDG(m)
-  real( kind=8 ), intent(in) :: percDep(nb)
-
-  real( kind=8 ), intent(out) :: newZ(m)
-
-  integer :: k, c
-
-  newZ = elev
-
-  ! Update elevation
-  do k = 1, m
-    c = pitIDG(k)+1
-    if(c>0)then
-      if(percDep(c)==1)then
-        newZ(k) = fillZ(k)
-      elseif(fillZ(k)>elev(k))then
-        newZ(k) = percDep(c)*(fillZ(k)-elev(k))+elev(k)
-      endif
-    endif
-  enddo
-
-  return
-
-end subroutine pitHeight
-
-subroutine addExcess(elev, downSed, depLocal, m, n)
-!*****************************************************************************
-! Add excess sediment volume on pit nodes
-
-  use meshparams
-  implicit none
-
-  integer :: m, n
-  real( kind=8 ), intent(in) :: elev(m)
-  real( kind=8 ), intent(in) :: downSed(n,2)
-
-  real( kind=8 ), intent(out) :: depLocal(m)
-
-  integer :: k, id, c, p, nn
-  real( kind=8 ) :: zmin
-
-  depLocal = 0.
-
-  ! Update elevation on downstream node of spill over point
-  do k = 1, n
-    id = int(downSed(k,1))+1
-    zmin = elev(id)
-    c = id
-    do p = 1, FVnNb(id)
-      nn = FVnID(id,p)+1
-      if(elev(nn)<zmin)then
-        zmin = elev(nn)
-        c = nn
-      endif
-    enddo
-    depLocal(c) = depLocal(c) + downSed(k,2)
-  enddo
-
-  return
-
-end subroutine addExcess
-
-subroutine fillDepression(dem, fillp, wsh, graph, spillpit, area, idloc, elev, dID, vol, cPit, m, nb)
-!*****************************************************************************
-! Fill depressions/flats from priority-flood calculation
-
-  use meshparams
-  implicit none
-
-  integer :: m, nb
-  integer, intent(in) :: wsh(m)
-  real( kind=8 ), intent(in) :: dem(m)
-  real( kind=8 ), intent(in) :: area(m)
-  integer, intent(in) :: idloc(m)
-  real( kind=8 ), intent(in) :: fillp(m)
-  real( kind=8 ), intent(in) :: graph(nb)
-  integer, intent(in) :: spillpit(nb)
-
-  real( kind=8 ), intent(out) :: elev(m)
-  real( kind=8 ), intent(out) :: vol(nb)
-  integer, intent(out) :: cPit(nb,nb)
-  integer, intent(out) :: dID(m)
-
-  integer :: k, nn
-  real( kind=8 ) :: fillwatershed
-
-  dID = -1
-  vol = 0.
-  cPit = 0
-  do k = 1, m
-    nn = wsh(k)+1
-    fillwatershed = graph(nn)
-    if(dem(k) < fillp(k) .and. fillp(k) > fillwatershed)then
-      elev(k) = fillp(k)
-      dID(k) = nn-1
-    elseif(dem(k) <= fillwatershed)then
-      elev(k) = fillwatershed
-      dID(k) = nn-1
-    else
-      elev(k) = dem(k)
-    endif
-    if(area(k)>0 .and. idloc(k)==1)then
-      vol(nn) = vol(nn) + (elev(k)-dem(k))*area(k)
-    endif
-  enddo
-
-  do k = 1, nb
-    if(spillpit(k)>0)then
-      if(graph(k)==graph(spillpit(k)+1))then
-        cPit(k,spillpit(k)+1) = 1
-        cPit(spillpit(k)+1,k) = 1
-      elseif(graph(k)>graph(spillpit(k)+1))then
-        cPit(k,k) = 1
-      endif
-    endif
-  enddo
-
-  return
-
-end subroutine fillDepression
-
-subroutine combinePit(nb, m, cPit, locvol, pID, order, gPit, gID, gVol, gOver)
-!*****************************************************************************
-! Combine depressions/flats globally and extract their information...
-
-  use meshparams
-  implicit none
-
-  integer :: nb,m
-  integer, intent(in) :: cPit(nb,nb)
-  integer, intent(in) :: pID(m)
-  real(kind=8), intent(in) :: locvol(nb)
-  integer, intent(in) :: order(nb)
-  integer, intent(out) :: gPit(nb)
-  integer, intent(out) :: gID(m)
-  real(kind=8), intent(out) :: gVol(nb)
-  integer, intent(out) :: gOver(nb)
-
-  integer :: ngbNb(nb), tmp1(2*nb), tmp2(nb)
-  integer :: ngbhArr(nb,nb), tmp(nb,nb)
-
-  real(kind=8) :: vol(nb*2)
-  integer :: k, p, d
-  logical :: exist(nb)
-
-  ngbNb = 0
-  ngbhArr = -1
-  tmp = -1
-  gPit = -1
-  gID = -1
-
-  exist = .False.
-  do k = 1, nb
-    do p = 1, nb
-      if(cPit(k,p)>0 .and. ngbhArr(k,p) < 0)then
-        ngbNb(k) = ngbNb(k)+1
-        ngbhArr(k,p) = 1
-        tmp(k,ngbNb(k)) = p
-        if(ngbhArr(p,k) < 0)then
-          ngbNb(p) = ngbNb(p)+1
-          ngbhArr(p,k) = 1
-          tmp(p,ngbNb(p)) = k
-        endif
-        exist(k) = .True.
-        exist(p) = .True.
-      endif
-    enddo
-  enddo
-
-  d = nb
-  do k = 1, nb
-    if(exist(k) .and. gPit(k)==-1) gPit(k) = d+k
-    do p = 1, ngbNb(k)
-      gPit(tmp(k,p)) = gPit(k)
-    enddo
-  enddo
-
-  do k = 1, m
-    if(pID(k)>-1) gID(k) = gPit(pID(k)+1)
-  enddo
-
-  vol = 0.
-  do k = 1, nb
-    if(gPit(k)>2*nb) write(*,*)'Problem of array size!'
-    if(locvol(k)>0. .and. gPit(k)>0) vol(gPit(k)) = vol(gPit(k)) + locvol(k)
-  enddo
-
-  gVol = 0.
-  tmp1 = 2*nb
-  tmp2 = -1
-  do k = 1, nb
-    if(order(k)>-1) tmp2(order(k)+1) = k
-    if(gPit(k)>0)then
-      gVol(k) = vol(gPit(k))
-      if(order(k)<tmp1(gPit(k)) .and. order(k)>-1) tmp1(gPit(k)) = order(k)
-    endif
-  enddo
-
-  gOver = -1
-  do k = 1, nb
-    if(gPit(k)>-1) gOver(k) = tmp2(tmp1(gPit(k))+1)-1
-  enddo
-
-  return
-
-end subroutine combinePit
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! BOUNDARY CONDITION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -865,55 +618,6 @@ end subroutine diffusionDT
 !! FLOW DIRECTION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine singlePit( inIDs, bounds, elev, nelev, shore, nb)
-!*****************************************************************************
-! Remove single pit in local elevation grid
-
-  use meshparams
-  implicit none
-
-  integer :: nb
-
-  integer, intent(in) :: inIDs(nb)
-  integer, intent(in) :: bounds(nb)
-  real( kind=8 ), intent(in) :: elev(nb)
-
-  real( kind=8 ), intent(out) :: nelev(nb)
-  integer, intent(out) :: shore(nb)
-
-  logical :: isPit
-  integer :: k, n, p
-  real( kind=8 ) :: emin
-
-  nelev = elev
-  shore = 0
-  do k = 1, nb
-    emin = 1.e8
-    if(inIDs(k)>=0 .and. bounds(k)==0)then
-      isPit = .True.
-      do p = 1, FVnNb(k)
-        n = FVnID(k,p)+1
-        if(n>0 .and. FVeLgt(k,p)>0.)then
-          if(shore(k)==0  .and. elev(k)>0. .and. elev(n)<=0.)then
-            shore(k) = 1
-          endif
-          if(elev(k)>elev(n))then
-            isPit = .False.
-          else
-            emin = min(emin,elev(n))
-          endif
-        endif
-      enddo
-      if(isPit)then
-        nelev(k) = emin+1.e-6
-      endif
-    endif
-  enddo
-
-  return
-
-end subroutine singlePit
-
 subroutine MFDreceivers( nRcv, inIDs, elev, rcv, slope, dist, wgt, nb)
 !*****************************************************************************
 ! Compute receiver characteristics based on multiple flow direction algorithm
@@ -968,7 +672,7 @@ subroutine MFDreceivers( nRcv, inIDs, elev, rcv, slope, dist, wgt, nb)
         endif
       enddo
 
-      if(kk == 0 .or. elev(k)<=0.)then
+      if(kk == 0)then
         rcv(k,1:nRcv) = k-1
       elseif(kk <= nRcv)then
         val = 0.
@@ -1207,3 +911,99 @@ subroutine defineTIN( coords, cells_nodes, cells_edges, edges_nodes, area, circu
   FVvDist = voroDist
 
 end subroutine defineTIN
+
+
+subroutine defineGTIN( nb, cells_nodes, edges_nodes, ngbNb, ngbID, n, m)
+!*****************************************************************************
+! Compute for global triangulation the characteristics of each node
+
+  use meshparams
+  implicit none
+
+  integer :: m, n
+  integer, intent(in) :: nb
+  integer, intent(in) :: cells_nodes(n, 3)
+  integer, intent(in) :: edges_nodes(m, 2)
+
+  integer, intent(out) :: ngbID(nb, 12)
+  integer, intent(out) :: ngbNb(nb)
+
+  integer :: i, n1, n2, k, l, eid, p
+  integer :: nid(2), nc(3), edge(nb, 12)
+  integer :: cell_ids(nb, 12)
+
+  logical :: inside
+
+  cell_ids(:,:) = -1
+  edge(:,:) = -1
+  ngbNb(:) = 0
+  ngbID(:,:) = -1
+
+  ! Find all cells surrounding a given vertice
+  do i = 1, n
+    nc = cells_nodes(i,1:3)+1
+    do p = 1, 3
+      inside = .False.
+      lp: do k = 1, 12
+        if( cell_ids(nc(p),k) == i-1 )then
+          exit lp
+        elseif( cell_ids(nc(p),k) == -1 )then
+          inside = .True.
+          exit lp
+        endif
+      enddo lp
+      if( inside )then
+        cell_ids(nc(p),k)  = i-1
+      endif
+    enddo
+  enddo
+
+  ! Find all edges connected to a given vertice
+  do i = 1, m
+    n1 = edges_nodes(i,1)+1
+    n2 = edges_nodes(i,2)+1
+    inside = .False.
+    lp0: do k = 1, 12
+      if(edge(n1,k) == i-1)then
+        exit lp0
+      elseif(edge(n1,k) == -1)then
+        inside = .True.
+        exit lp0
+      endif
+    enddo lp0
+    if( inside )then
+      edge(n1,k)  = i-1
+      ngbNb(n1) = ngbNb(n1) + 1
+    endif
+    inside = .False.
+    lp1: do k = 1, 12
+      if(edge(n2,k) == i-1)then
+        exit lp1
+      elseif(edge(n2,k) == -1)then
+        inside = .True.
+        exit lp1
+      endif
+    enddo lp1
+    if( inside )then
+      edge(n2,k)  = i-1
+      ngbNb(n2) = ngbNb(n2) + 1
+    endif
+  enddo
+
+  do k = 1, nb
+    ! Get triangulation edge lengths
+    l = 0
+    do eid = 1, ngbNb(k)
+      nid = edges_nodes(edge(k,eid)+1,1:2)
+      if( nid(1) == k-1)then
+        l = l + 1
+        ngbID(k,l) = nid(2)
+      else
+        l = l + 1
+        ngbID(k,l) = nid(1)
+      endif
+    enddo
+
+  enddo
+
+end subroutine defineGTIN

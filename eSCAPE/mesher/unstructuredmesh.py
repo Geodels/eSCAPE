@@ -28,6 +28,7 @@ import warnings;warnings.simplefilter('ignore')
 import meshio
 import meshplex
 
+from eSCAPE._fortran import defineGTIN
 from eSCAPE._fortran import defineTIN
 from eSCAPE._fortran import slpBounds
 from eSCAPE._fortran import flatBounds
@@ -50,12 +51,35 @@ class UnstMesh(object):
         # Define mesh attributes on root processor
         t0 = clock()
         t = clock()
+        gpoints = np.zeros(1)
         if MPIrank == 0:
             cells = np.asarray(self.mdata.cells['triangle'], dtype=np.int32)
             coords = np.asarray(self.mdata.points, dtype=np.double)
             MPIcomm.bcast(cells.shape, root=0)
             MPIcomm.bcast(coords.shape, root=0)
             elev = self.mdata.point_data[filename[1]]
+            gpoints[0] = len(coords)
+            if self.verbose:
+                print('Extract information (%0.02f seconds)'% (clock() - t))
+            t = clock()
+            Gmesh = meshplex.mesh_tri.MeshTri(coords, cells)
+            if self.verbose:
+                print('Reading meshplex meshtri (%0.02f seconds)'% (clock() - t))
+            t = clock()
+            Gmesh.mark_boundary()
+            if self.verbose:
+                print('Mark boundary TIN (%0.02f seconds)'% (clock() - t))
+            ids = np.arange(0, len(Gmesh.node_coords), dtype=int)
+            self.boundGlob = ids[Gmesh._is_boundary_node]
+            t = clock()
+            Gmesh.create_edges()
+            if self.verbose:
+                print('Defining edges TIN (%0.02f seconds)'% (clock() - t))
+            t = clock()
+            self.Gmesh_ngbNbs, self.Gmesh_ngbID = defineGTIN(gpoints[0], Gmesh.cells['nodes'], Gmesh.edges['nodes'])
+            if self.verbose:
+                print('Defining global TIN (%0.02f seconds)'% (clock() - t))
+            del Gmesh, ids
         else:
             cell_shape = list(MPIcomm.bcast(None, root=0))
             coord_shape = list(MPIcomm.bcast(None, root=0))
@@ -64,13 +88,22 @@ class UnstMesh(object):
             cells = np.zeros(cell_shape, dtype=np.int32)
             coords = np.zeros(coord_shape, dtype=np.double)
             elev = np.zeros(coord_shape[0], dtype=np.double)
+            self.Gmesh_ngbNbs = None
+            self.Gmesh_ngbID = None
+
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, gpoints, op=MPI.MAX)
+        self.gpoints = int(gpoints[0])
         if MPIrank == 0 and self.verbose:
-            print('Reading mesh information (%0.02f seconds)' % (clock() - t))
+            print('Reading mesh information (%0.02f seconds)' % (clock() - t0))
 
         # Create DMPlex
+        t = clock()
         self._create_DMPlex(dim, coords, cells, elev)
+        if MPIrank == 0 and self.verbose:
+            print('Creating Petsc DMPlex (%0.02f seconds)'% (clock() - t))
 
         # Define local vertex & cells
+        t = clock()
         cStart, cEnd = self.dm.getHeightStratum(0)
         # Dealing with triangular cells only
         self.lcells = np.zeros((cEnd-cStart,3), dtype=PETSc.IntType)
@@ -78,9 +111,8 @@ class UnstMesh(object):
             point_closure = self.dm.getTransitiveClosure(c)[0]
             self.lcells[c,:] = point_closure[-3:]-cEnd
         del point_closure
-
         if MPIrank == 0 and self.verbose:
-            print('Defining Petsc DMPlex (%0.02f seconds)'% (clock() - t))
+            print('Defining local DMPlex (%0.02f seconds)'% (clock() - t))
 
         # Create mesh structure with meshplex
         t = clock()
@@ -134,6 +166,9 @@ class UnstMesh(object):
         self.cumED.set(0.0)
         self.cumEDLocal = self.hLocal.duplicate()
         self.cumEDLocal.set(0.0)
+
+        self.shedID = self.hGlobal.duplicate()
+        self.shedIDLocal = self.hLocal.duplicate()
 
         self.Es = self.hGlobal.duplicate()
         self.Es.set(0.0)
@@ -478,6 +513,8 @@ class UnstMesh(object):
         self.hOld.destroy()
         self.hOldLocal.destroy()
 
+        self.shedID.destroy()
+        self.shedIDLocal.destroy()
         self.cumED.destroy()
         self.cumEDLocal.destroy()
         self.drainArea.destroy()
@@ -500,8 +537,6 @@ class UnstMesh(object):
         self.EbLocal.destroy()
         self.Hsoil.destroy()
         self.HsoilLocal.destroy()
-        self.watershedGlobal.destroy()
-        self.watershedLocal.destroy()
 
         self.iMat.destroy()
         self.lgmap_col.destroy()
@@ -512,12 +547,15 @@ class UnstMesh(object):
 
         self.vLoc.destroy()
         self.vecG.destroy()
+        self.FAL.destroy()
+        self.FAG.destroy()
         self.vecL.destroy()
         self.seaG.destroy()
         self.seaL.destroy()
         self.tmpG.destroy()
         self.tmpL.destroy()
         self.vGlob.destroy()
+        self.sedLoadLocal.destroy()
         self.dm.destroy()
 
     	if MPIrank == 0 and self.verbose:

@@ -9,71 +9,6 @@ python module _fortran ! in
   '''
   interface  ! in :_fortran
 
-      subroutine pitVolume(deplocal,pitidg,nb,voldep,m)
-
-          integer intent(in) :: nb
-          real(kind=8) dimension(m),intent(in) :: deplocal
-          integer dimension(m),intent(in),depend(m) :: pitidg
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: voldep
-          integer, optional,check(len(deplocal)>=m),depend(deplocal) :: m=len(deplocal)
-
-      end subroutine pitVolume
-
-      subroutine pitHeight(elev,fillz,pitidg,percdep,newz,m,nb)
-
-          real(kind=8) dimension(m),intent(in) :: elev
-          real(kind=8) dimension(m),intent(in),depend(m) :: fillz
-          integer dimension(m),intent(in),depend(m) :: pitidg
-          real(kind=8) dimension(nb),intent(in) :: percdep
-          real(kind=8) dimension(m),intent(out),depend(m) :: newz
-          integer, optional,check(len(elev)>=m),depend(elev) :: m=len(elev)
-          integer, optional,check(len(percdep)>=nb),depend(percdep) :: nb=len(percdep)
-
-      end subroutine pitHeight
-
-      subroutine addExcess(elev,downsed,deplocal,m,n)
-
-        real(kind=8) dimension(m),intent(in) :: elev
-        real(kind=8) dimension(n,2),intent(in) :: downsed
-        real(kind=8) dimension(m),intent(out),depend(m) :: deplocal
-        integer, optional,check(len(elev)>=m),depend(elev) :: m=len(elev)
-        integer, optional,check(len(downsed)>=n),depend(downsed) :: n=len(downsed)
-
-      end subroutine addExcess
-
-      subroutine fillDepression(dem,fillp,wsh,graph,spillpit,area,idloc,elev,dID,vol,cPit,m,nb)
-
-          real(kind=8) dimension(m),intent(in) :: dem
-          real(kind=8) dimension(m),intent(in),depend(m) :: fillp
-          integer dimension(m),intent(in),depend(m) :: wsh
-          real(kind=8) dimension(nb),intent(in) :: graph
-          integer dimension(nb),intent(in) :: spillpit
-          real(kind=8) dimension(m),intent(in),depend(m) :: area
-          integer dimension(m),intent(in),depend(m) :: idloc
-          real(kind=8) dimension(m),intent(out),depend(m) :: elev
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: vol
-          integer dimension(nb,nb),intent(out),depend(nb,nb) :: cPit
-          integer dimension(m),intent(out),depend(m) :: dID
-          integer, optional,check(len(dem)>=m),depend(dem) :: m=len(dem)
-          integer, optional,check(len(graph)>=nb),depend(graph) :: nb=len(graph)
-
-      end subroutine fillDepression
-
-      subroutine combinePit(nb,m,cPit,locvol,pID,order,gPit,gID,gVol,gOver)
-
-          integer :: nb
-          integer :: m
-          integer dimension(nb,nb),intent(in),depend(nb,nb) :: cPit
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: locvol
-          integer dimension(nb),intent(in),depend(nb) :: order
-          integer dimension(m),intent(in),depend(m) :: pID
-          integer dimension(nb),intent(out),depend(nb) :: gPit
-          integer dimension(m),intent(out),depend(m) :: gID
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: gVol
-          integer dimension(nb),intent(out),depend(nb) :: gOver
-
-      end subroutine combinePit
-
       subroutine meanSlope(elev,bid,gbounds,bslp,nb,b)
 
           real(kind=8) dimension(nb),intent(in) :: elev
@@ -184,17 +119,6 @@ python module _fortran ! in
 
       end subroutine minHeight
 
-      subroutine singlePit(inids,bounds,elev,nelev,shore,nb)
-
-          integer dimension(nb),intent(in) :: inids
-          integer dimension(nb),intent(in) :: bounds
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: nelev
-          integer dimension(nb),intent(out),depend(nb) :: shore
-          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
-
-      end subroutine singlePit
-
       subroutine MFDreceivers(nrcv,inids,elev,rcv,slope,dist,wgt,nb)
 
           integer intent(in) :: nrcv
@@ -225,6 +149,18 @@ python module _fortran ! in
           integer, optional,check(shape(edges_nodes,0)==m),depend(edges_nodes) :: m=shape(edges_nodes,0)
 
       end subroutine defineTIN
+
+      subroutine defineGTIN(nb,cells_nodes,edges_nodes,ngbnb,ngbid,n,m)
+
+          integer ,intent(in) :: nb
+          integer dimension(n,3),intent(in) :: cells_nodes
+          integer dimension(m,2),intent(in) :: edges_nodes
+          integer dimension(nb),intent(out),depend(nb) :: ngbnb
+          integer dimension(nb,12),intent(out),depend(nb) :: ngbid
+          integer, optional,check(shape(cells_nodes,0)==n),depend(cells_nodes) :: n=shape(cells_nodes,0)
+          integer, optional,check(shape(edges_nodes,0)==m),depend(edges_nodes) :: m=shape(edges_nodes,0)
+
+      end subroutine defineGTIN
 
   end interface
 
