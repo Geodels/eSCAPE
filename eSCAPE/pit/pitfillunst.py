@@ -17,7 +17,6 @@
 ###
 
 import numpy as np
-import pandas as pd
 from mpi4py import MPI
 import sys,petsc4py
 petsc4py.init(sys.argv)
@@ -88,11 +87,6 @@ class UnstPit(object):
         if MPIrank == 0 and self.verbose:
             print('Priority-flood algorithm initialisation (%0.02f seconds)' % (clock() - t0))
 
-        # data = np.zeros((len(self.idLocal),3))
-        # data = self.lcoords[self.idLocal,:]
-        # df = pd.DataFrame(data,columns=['X','Y','Z'])
-        # df.to_csv('inIDs'+str(MPIrank)+'.csv', index=False)
-
         return
 
     def getDepressions(self):
@@ -103,7 +97,7 @@ class UnstPit(object):
         tot = np.zeros(1, dtype=int)
         tot[0] = len(self.seaID)+self.nbPit
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, tot, op=MPI.SUM)
-        if tot[0] == 0:
+        if tot[0] == 0 or self.frac_fine == 1.:
             self.shedID.set(-1.)
             self.pHeight = None
             self.pVol = None
@@ -140,23 +134,22 @@ class UnstPit(object):
         self.pHeight = MPI.COMM_WORLD.bcast(pith, root=0)
         self.pVol = MPI.COMM_WORLD.bcast(pitvol, root=0)
         pNode = MPI.COMM_WORLD.bcast(pitNode, root=0)
-
         self.pitProc = -np.ones(len(pNode),dtype=int)
         self.pitNode = -np.ones(len(pNode),dtype=int)
         for k in range(len(pNode)):
             ids = np.where(self.natural2local==pNode[k])[0]
-            if len(ids) > 0 :
+            if len(ids) > 0 and self.inIDs[ids[0]] == 1:
                 self.pitProc[k] = MPIrank
                 self.pitNode[k] = ids[0]
-
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, self.pitProc, op=MPI.MAX)
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, self.pitNode, op=MPI.MAX)
 
         gfill = MPI.COMM_WORLD.bcast(fill, root=0)
         gwshed = MPI.COMM_WORLD.bcast(wshed, root=0)
+
         fillLocal = gfill[self.natural2local]
         wshedLocal = gwshed[self.natural2local]
-        del fill, gfill, wshed, gwshed, pitvol, pith, pitNode
+        del fill, gfill, wshed, gwshed, pitvol, pith, pitNode, h
 
         self.fillLocal.setArray(fillLocal)
         del fillLocal

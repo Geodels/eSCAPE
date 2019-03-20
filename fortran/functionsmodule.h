@@ -2,6 +2,7 @@
 #define  flatBounds  flatbounds
 #define  slpBounds  slpbounds
 #define  setDiffusionCoeff  setdiffusioncoeff
+#define  explicitDiff  explicitdiff
 #define  distributeHeight   distributeheight
 #define  distributeVolume   distributevolume
 #define  setHillslopeCoeff  sethillslopecoeff
@@ -15,6 +16,7 @@
 #define  flatBounds_  flatbounds_
 #define  slpBounds_  slpbounds_
 #define  setDiffusionCoeff_   setdiffusioncoeff_
+#define  explicitDiff_   explicitdiff_
 #define  distributeHeight_   distributeheight_
 #define  distributeVolume_   distributevolume_
 #define  setHillslopeCoeff_   sethillslopecoeff_
@@ -28,6 +30,7 @@
 #define  _flatBounds  _flatbounds
 #define  _slpBounds  _slpbounds
 #define  _setDiffusionCoeff   _setdiffusioncoeff
+#define  _explicitDiff   _explicitdiff
 #define  _distributeHeight   _distributeheight
 #define  _distributeVolume   _distributevolume
 #define  _setHillslopeCoeff   _sethillslopecoeff
@@ -41,6 +44,7 @@
 #define  _flatBounds_  _flatbounds_
 #define  _slpBounds_  _slpbounds_
 #define  _setDiffusionCoeff_   _setdiffusioncoeff_
+#define  _explicitDiff_   _explicitdiff_
 #define  _distributeHeight_   _distributeheight_
 #define  _distributeVolume_   _distributevolume_
 #define  _setHillslopeCoeff_   _sethillslopecoeff_

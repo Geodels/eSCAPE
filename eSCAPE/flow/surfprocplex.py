@@ -19,8 +19,6 @@
 import numpy as np
 from mpi4py import MPI
 from scipy import sparse
-# import pandas as pd
-# from scipy.spatial import cKDTree
 
 import sys,petsc4py
 petsc4py.init(sys.argv)
@@ -30,6 +28,7 @@ import warnings;warnings.simplefilter('ignore')
 
 from eSCAPE._fortran import setHillslopeCoeff
 from eSCAPE._fortran import setDiffusionCoeff
+from eSCAPE._fortran import explicitDiff
 from eSCAPE._fortran import MFDreceivers
 from eSCAPE._fortran import minHeight
 from eSCAPE._fortran import diffusionDT
@@ -48,6 +47,16 @@ class SPMesh(object):
     Building the surface processes based on different neighbour conditions
     """
     def __init__(self, *args, **kwargs):
+
+        val = np.zeros(1,dtype=int)
+        X = np.ma.masked_equal(self.FVmesh_edgeLgt,0)
+        val[0] = X.min()
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, val, op=MPI.MIN)
+        minlgth = val[0]
+        dt = np.divide(np.square(val[0]),2.*self.sedimentK)
+        self.diff_step = int(self.dt/dt) + 1
+        self.diff_dt = self.dt/float(self.diff_step)
+        del X, val
 
         # KSP solver parameters
         self.rtol = 1.0e-8
@@ -76,7 +85,7 @@ class SPMesh(object):
                 indices[ids] = ids
                 tmpMat.assemblyBegin()
                 tmpMat.setValuesLocalCSR(indptr, indices.astype(PETSc.IntType), data,
-                                                                PETSc.InsertMode.INSERT_VALUES)
+                                         PETSc.InsertMode.INSERT_VALUES)
                 tmpMat.assemblyEnd()
                 self.Diff += tmpMat
                 tmpMat.destroy()
@@ -499,7 +508,8 @@ class SPMesh(object):
             Qs = np.multiply(Ds,Qw)
 
             # Update Elevation due to Deposition
-            self.stepED.setArray(Ds)
+            self.stepEDL.setArray(Ds)
+            self.dm.localToGlobal(self.stepEDL, self.stepED, 1)
             self.cumED.axpy(1.,self.stepED)
             self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
             self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
@@ -578,6 +588,10 @@ class SPMesh(object):
         if self.pHeight is None:
             return
 
+        # In case there is only suspended sediments
+        if self.frac_fine == 1.:
+            return
+
         # Sediment flux and volume
         Qs = self.vSedLocal.getArray().copy()
         depo = np.zeros(Qs.shape)
@@ -599,9 +613,11 @@ class SPMesh(object):
 
         # Find inland depressions
         inlandIDs = self.pHeight>self.sealevel
+        excess = np.zeros(1)
         for k in range(len(self.pVol)):
             if inlandIDs[k]:
-                pts = wshed==k
+                # pts = wshed==k
+                pts = np.where(wshed==k)[0]
                 zsea[pts] = -1.e6
                 locVol = np.zeros(1)
                 locVol[0] = np.sum(depV[pts])
@@ -614,10 +630,10 @@ class SPMesh(object):
                     depV[pts] = 0.
                     self.pVol[k] -= locVol[0]
                 # Case 2: incoming sediment volume greater than pit volume
-                elif locVol[0] > self.pVol[k]:
+                elif locVol[0] > self.pVol[k] and wshed[self.pitNode[k]]>=0:
                     depo[pts] = hDiff[pts]
                     Qs[pts] = 0.
-                    self.excess = True
+                    excess[0] = 1
                     self.pVol[k] = 0.
                     depV[pts] = 0.
                     if MPIrank==self.pitProc[k]:
@@ -629,6 +645,10 @@ class SPMesh(object):
                     Qs[pts] = 0.
                     depV[pts] = 0.
                     self.pVol[k] = 0.
+
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, excess, op=MPI.MAX)
+        if excess[0] > 0:
+            self.excess = True
 
         self.tmpL.setArray(zsea)
         self.dm.localToGlobal(self.tmpL, self.tmpG, 1)
@@ -702,11 +722,12 @@ class SPMesh(object):
 
         t0 = clock()
 
+        # In case there is only suspended sediments
+        if self.frac_fine == 1.:
+            return
+
         # Get underwater directions
         self.FlowAccumulation(filled=True)
-
-        # Qs = self.vSed.getArray().copy()
-        # Qs = np.divide(Qs,self.FVmesh_area)
 
         # Define maximum marine volumic deposition rate
         hArray = self.hGlobal.getArray().copy()
@@ -803,90 +824,114 @@ class SPMesh(object):
         t1 = clock()
 
         # Nothing to diffuse...
-        if self.seaG.sum() <= 0. or self.maxIters==0:
+        if self.seaG.sum() <= 0.:
             return
 
-        self.hLocal.copy(result=self.hOldLocal)
-        hL0 = self.hOldLocal.getArray().copy()
-
-        # Get sediment volume in the marine environment
-        self.tmpG.pointwiseMult(self.seaG,self.areaGlobal)
-        self.dm.globalToLocal(self.tmpG, self.tmpL, 1)
-        self.dm.localToGlobal(self.tmpL, self.tmpG, 1)
-        vSed = self.tmpL.getArray().copy()
-        hL = hL0.copy()
-        hmax = self.tmpG.max()[1]
-        while hmax > 0.:
-            nhL,nvSed = distributeHeight(self.inIDs, self.sealevel, hL, hL0, vSed)
-            nhL[self.idGBounds] = hL0[self.idGBounds]
-            nvSed[self.idGBounds] = 0.
-            self.vecL.setArray(nhL)
-            self.dm.localToGlobal(self.vecL, self.vecG, 1)
-            self.dm.globalToLocal(self.vecG, self.vecL, 1)
-            hL = self.vecL.getArray().copy()
-            self.vecL.setArray(nvSed)
-            self.dm.localToGlobal(self.vecL, self.vecG, 1)
-            self.dm.globalToLocal(self.vecG, self.vecL, 1)
-            vSed = self.vecL.getArray().copy()
-            vSed[self.idGBounds] = 0.
-            nvSed = distributeVolume(self.inIDs, self.sealevel, hL, hL0, vSed)
-            nvSed[self.idGBounds] = 0.
-            self.vecL.setArray(nvSed)
-            self.dm.localToGlobal(self.vecL, self.vecG, 1)
-            self.dm.globalToLocal(self.vecG, self.vecL, 1)
-            vSed = self.vecL.getArray().copy()
-            vSed[self.idGBounds] = 0.
-            self.tmpG.pointwiseDivide(self.vecG,self.areaGlobal)
-            hmax = self.tmpG.max()[1]
-
-        self.hLocal.setArray(hL)
-        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
-        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
-
-        limit = 1.e-6
+        it = 0
+        flag = False
+        limit = 1.e-12
         dt = self.dt/float(self.maxIters)
         step = int(self.dt/dt) + 1
+
+        # Elevation without freshly deposited sediment thickness
+        self.hLocal.copy(result=self.hOldLocal)
         h0 = self.hOldLocal.getArray().copy()
 
-        it = 0
+        # Local elevation adding newly deposited thickness
+        self.hLocal.axpy(1.,self.seaL)
         hL0 = self.hLocal.getArray().copy()
-        stop = np.zeros(1)
-        stop[0] = 0
-        while(it<=step):
+
+        while(it<step):
             elev = hL0
             self.hLocal.setArray(elev)
             self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
             self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+            elev = self.hLocal.getArray().copy()
             dh = elev-h0
             dh[dh<0] = 0.
             sedDiff = self._diffuse_TopSed(limit, elev, h0-self.sealevel, dh, dt)
-            self._solve_KSP(True, sedDiff, self.hGlobal, self.tmpG)
+            self._solve_KSP(flag, sedDiff, self.hGlobal, self.tmpG)
             self.dm.globalToLocal(self.tmpG, self.tmpL, 1)
             self.dm.localToGlobal(self.tmpL, self.tmpG, 1)
             self.tmpL.copy(result=self.hLocal)
             self.tmpG.copy(result=self.hGlobal)
             sedDiff.destroy()
             hL0 = self.hLocal.getArray().copy()
-            stop[0] = 0
-            bid = np.where(hL0>h0+1.e-3)[0]
-            if len(bid)>0:
-                if hL0[bid].max()>self.sealevel:
-                    stop[0] = 1
-                if hL0[bid].max()-self.sealevel < 1.e-3:
-                    idd = np.where(hL0[bid]>self.sealevel)[0]
-                    hL0[bid[idd]] = self.sealevel-1.e-3
-            MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, stop, op=MPI.MAX)
-            if stop[0] == 0 and it == step:
-                break
-            if stop[0] == 1 and it == step:
-                it = step-1
+            it += 1
+            flag = True
+
+        # Update elevation change vector
+        self.tmpL.setArray(dh)
+        self.dm.localToGlobal(self.tmpL, self.stepED, 1)
+        self.dm.globalToLocal(self.stepED, self.tmpL, 1)
+        del dh, elev, hL0, h0
+
+        self.hLocal.waxpy(1.0,self.tmpL,self.hOldLocal)
+        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+
+        self.cumED.axpy(1.,self.stepED)
+        self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
+        self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+        if self.Ksed > 0. and self.frac_fine < 1.:
+            self.Hsoil.axpy(1.,self.stepED)
+            Hsoil = self.Hsoil.getArray().copy()
+            Hsoil[Hsoil<0.] = 0.
+            self.Hsoil.setArray(Hsoil)
+            self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
+            del Hsoil
+
+        if MPIrank == 0 and self.verbose:
+            print('Deposited sediment distribution (%0.02f seconds)'% (clock() - t1))
+
+        return
+
+    def _distSedExplicit(self):
+        """
+        Distribute newly deposited sediments explicitly
+        """
+
+        t1 = clock()
+
+        # Nothing to diffuse...
+        if self.seaG.sum() <= 0.:
+            return
+
+        it = 0
+        limit = 1.e-12
+
+        # Elevation without freshly deposited sediment thickness
+        self.hLocal.copy(result=self.hOldLocal)
+        h0 = self.hOldLocal.getArray().copy()
+
+        # Local elevation adding newly deposited thickness
+        self.hLocal.axpy(1.,self.seaL)
+        hL0 = self.hLocal.getArray().copy()
+
+        while(it<self.diff_step):
+            elev = hL0
+            self.hLocal.setArray(elev)
+            self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+            self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+            elev = self.hLocal.getArray().copy()
+            dh = elev-h0
+            dh[dh<0] = 0.
+            # Diffusion matrix construction
+            newz = explicitDiff(self.sedimentK*self.diff_dt, limit, elev,
+                                      h0-self.sealevel, dh)
+            self.tmpL.setArray(newz)
+            self.dm.localToGlobal(self.tmpL, self.tmpG, 1)
+            self.dm.globalToLocal(self.tmpG, self.tmpL, 1)
+            self.tmpL.copy(result=self.hLocal)
+            self.tmpG.copy(result=self.hGlobal)
+            hL0 = self.hLocal.getArray().copy()
             it += 1
 
         # Update elevation change vector
         self.tmpL.setArray(dh)
         self.dm.localToGlobal(self.tmpL, self.stepED, 1)
         self.dm.globalToLocal(self.stepED, self.tmpL, 1)
-        del dh
+        del dh, elev, hL0, h0
 
         self.hLocal.waxpy(1.0,self.tmpL,self.hOldLocal)
         self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
@@ -919,10 +964,11 @@ class SPMesh(object):
             dh = self.seaL.getArray().copy()
             depSea = np.zeros(dh.shape)
             depSea[self.seaID] = dh[self.seaID]
+            depSea[depSea<0] = 0.
             self.seaL.setArray(depSea)
             self.dm.localToGlobal(self.seaL, self.seaG, 1)
             self.dm.globalToLocal(self.seaG, self.seaL, 1)
-
+            del depSea
             self.hLocal.axpy(-1.,self.seaL)
             self.hGlobal.axpy(-1.,self.seaG)
             self.cumED.axpy(-1.,self.seaG)
@@ -935,7 +981,8 @@ class SPMesh(object):
                  self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
                  del Hsoil
 
-            self._distributeSediment()
+            self._distSedExplicit()
+            # self._distributeSediment()
             if MPIrank == 0 and self.verbose:
                 print('Compute Sediment Diffusion (%0.02f seconds)'% (clock() - t0))
 

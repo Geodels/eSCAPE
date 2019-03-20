@@ -67,6 +67,18 @@ python module _fortran ! in
 
       end subroutine setDiffusionCoeff
 
+      subroutine explicitDiff(kd,limit,elev,elev0,dh,newz,nb)
+
+          real(kind=8) intent(in) :: kd
+          real(kind=8) intent(in) :: limit
+          real(kind=8) dimension(nb),intent(in) :: elev
+          real(kind=8) dimension(nb),intent(in) :: elev0
+          real(kind=8) dimension(nb),intent(in) :: dh
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: newz
+          integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
+
+      end subroutine explicitDiff
+
       subroutine distributeHeight(inids,sl,elev,elev0,sed,nelev,nsed,nb)
 
           integer dimension(nb),intent(in) :: inids

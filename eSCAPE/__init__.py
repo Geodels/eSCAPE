@@ -172,10 +172,6 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
                 # Marine deposition
                 _SPMesh.marineDeposition(self)
 
-                # # Output time step
-                # _WriteMesh.outputMesh(self, remesh=False)
-                # return
-
                 # Apply diffusion to deposited sediments
                 if self.frac_fine < 1.:
                     _SPMesh.SedimentDiffusion(self)

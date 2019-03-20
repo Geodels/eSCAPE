@@ -337,9 +337,9 @@ subroutine setDiffusionCoeff(Kd, limit, elev, elev0, dh, dcoeff, nb)
             v = c*FVvDist(k,p)/FVeLgt(k,p)
             n = FVnID(k,p)+1
             limiter = 0.
-            if(elev(n)>elev(k) .and. elev0(k)<0.)then
+            if(elev(n)>elev(k) .and. elev0(n)<0.)then
               limiter = dh(n)/(dh(n)+limit)
-            elseif(elev(n)<=elev(k) .and. elev0(n)<0.)then ! elev(k)>elev0(k))then
+            elseif(elev(n)<elev(k) .and. elev0(k)<0.)then ! elev(k)>elev0(k))then
               limiter = dh(k)/(dh(k)+limit)
             endif
             s1 = s1 + v*limiter
@@ -353,6 +353,56 @@ subroutine setDiffusionCoeff(Kd, limit, elev, elev0, dh, dcoeff, nb)
     return
 
 end subroutine setDiffusionCoeff
+
+subroutine explicitDiff(Kd, limit, elev, elev0, dh, newz, nb)
+!*****************************************************************************
+! Define freshly deposited sediments diffusion explicitly
+
+    use meshparams
+    implicit none
+
+    integer :: nb
+
+    real( kind=8 ), intent(in) :: Kd
+    real( kind=8 ), intent(in) :: limit
+    real( kind=8 ), intent(in) :: elev(nb)
+    real( kind=8 ), intent(in) :: elev0(nb)
+    real( kind=8 ), intent(in) :: dh(nb)
+
+    real( kind=8 ), intent(out) :: newz(nb)
+
+    integer :: k, p, n
+    real( kind=8 ) :: vals
+    real( kind=8 ) :: s1, c, v, limiter
+
+    newz = elev
+    do k = 1, nb
+      s1 = 0.
+      vals = 0.
+
+      if(FVarea(k)>0)then
+        c = Kd/FVarea(k)
+        do p = 1, FVnNb(k)
+          if(FVvDist(k,p)>0.)then
+            v = c*FVvDist(k,p)/FVeLgt(k,p)
+            n = FVnID(k,p)+1
+            limiter = 0.
+            if(elev(n)>elev(k) .and. elev0(n)<0.)then
+              limiter = dh(n)/(dh(n)+limit)
+            elseif(elev(n)<elev(k) .and. elev0(k)<0.)then
+              limiter = dh(k)/(dh(k)+limit)
+            endif
+            s1 = s1 + v*limiter
+            vals = vals + v*limiter*elev(n)
+          endif
+        enddo
+        newz(k) = elev(k)*(1.0 - s1) + vals
+      endif
+    enddo
+
+    return
+
+end subroutine explicitDiff
 
 subroutine distributeHeight( inIDs, sl, elev, elev0, sed, nelev, nsed, nb )
 !*****************************************************************************

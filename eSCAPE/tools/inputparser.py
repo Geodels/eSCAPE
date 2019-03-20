@@ -306,7 +306,7 @@ class ReadYaml(object):
             try:
                 self.vland = spdDict['vsL']
             except KeyError as exc:
-                self.vland = 1.0
+                self.vland = 0.0
             try:
                 self.frac_fine = spdDict['Ff']
             except KeyError as exc:
@@ -323,7 +323,7 @@ class ReadYaml(object):
             except KeyError as exc:
                 self.Hstar = 1.0
         except KeyError as exc:
-            self.vland = 1.0
+            self.vland = 0.0
             self.frac_fine = 0.0
             self.phi = 0.0
             self.Hstar = 1.0
@@ -346,14 +346,14 @@ class ReadYaml(object):
                 self.sedimentK = hillDict['sedimentK']
             except KeyError as exc:
                 self.sedimentK = 10.
-            try:
-                self.maxIters = hillDict['maxIT']
-            except KeyError as exc:
-                self.maxIters = 0
+            # try:
+            #     self.maxIters = hillDict['maxIT']
+            # except KeyError as exc:
+            #     self.maxIters = 0
         except KeyError as exc:
             self.Cd = 0.
             self.sedimentK = 10.
-            self.maxIters = 500
+            # self.maxIters = 500
 
         return
 
@@ -429,6 +429,7 @@ class ReadYaml(object):
             self.soildata = pd.DataFrame(tmpSoil, columns=['sUni', 'sMap', 'sKey'])
 
         except KeyError as exc:
+            tmpSoil = []
             tmpSoil.insert(0, {'sUni': 0., 'sMap': None, 'sKey': None})
             self.soildata = pd.DataFrame(tmpSoil, columns=['sUni', 'sMap', 'sKey'])
             pass
