@@ -110,6 +110,11 @@ class ReadYaml(object):
             self.flowDir = 1
 
         try:
+            self.sphere = domainDict['sphere']
+        except KeyError as exc:
+            self.sphere = 0
+
+        try:
             meshFile = domainDict['filename']
         except KeyError as exc:
             print("Key 'filename' is required and is missing in the 'domain' declaration!")
@@ -522,7 +527,9 @@ class ReadYaml(object):
             tecSort = sorted(tecDict, key=itemgetter('start'))
             for k in range(len(tecSort)):
                 tecStart = None
-                tMap = None
+                tMapX = None
+                tMapY = None
+                tMapZ = None
                 tUniform = None
                 try:
                     tecStart = tecSort[k]['start']
@@ -534,54 +541,113 @@ class ReadYaml(object):
                 except:
                     pass
                 try:
-                    tMap = tecSort[k]['map']
+                    tMapX = tecSort[k]['mapX']
                 except:
                     pass
-                    # print("For each tectonic event a map is required.")
-                    # raise ValueError('Tectonic event {} has no parameter map'.format(k))
+                try:
+                    tMapY = tecSort[k]['mapY']
+                except:
+                    pass
+                try:
+                    tMapZ = tecSort[k]['mapZ']
+                except:
+                    pass
 
-                if tMap is not None:
-                    if self.meshFile[0] != tMap[0]:
+                if tMapX is not None:
+                    if self.meshFile[0] != tMapX[0]:
                         try:
-                            with open(tMap[0]) as tecfile:
+                            with open(tMapX[0]) as tecfile:
                                 pass
                         except IOError as exc:
-                            print("Unable to open tectonic file: ",tMap[0])
-                            raise IOError('The tectonic file {} is not found for climatic event {}.'.format(tMap[0],k))
+                            print("Unable to open tectonic file: ",tMapX[0])
+                            raise IOError('The tectonic file {} is not found for climatic event {}.'.format(tMapX[0],k))
 
-                        mdata = meshio.read(tMap[0])
+                        mdata = meshio.read(tMapX[0])
                         tecSet = mdata.point_data
                     else:
                         tecSet = self.mdata.point_data
                     try:
-                        tecKey = tecSet[tMap[1]]
+                        tecKey = tecSet[tMapX[1]]
                     except KeyError as exc:
-                        print("Field name {} is missing from tectonic file {}".format(tMap[1],tMap[0]))
+                        print("Field name {} is missing from tectonic file {}".format(tMapX[1],tMapX[0]))
                         print("The following fields are available: ",tecSet.keys())
                         print("Check your tectonic file fields definition...")
                         raise KeyError('Field name for tectonics is not defined correctly or does not exist!')
 
-                if tMap is None and tUniform is None:
+
+                if tMapY is not None:
+                    if self.meshFile[0] != tMapY[0]:
+                        try:
+                            with open(tMapY[0]) as tecfile:
+                                pass
+                        except IOError as exc:
+                            print("Unable to open tectonic file: ",tMapY[0])
+                            raise IOError('The tectonic file {} is not found for climatic event {}.'.format(tMapY[0],k))
+
+                        mdata = meshio.read(tMapY[0])
+                        tecSet = mdata.point_data
+                    else:
+                        tecSet = self.mdata.point_data
+                    try:
+                        tecKey = tecSet[tMapY[1]]
+                    except KeyError as exc:
+                        print("Field name {} is missing from tectonic file {}".format(tMapY[1],tMapY[0]))
+                        print("The following fields are available: ",tecSet.keys())
+                        print("Check your tectonic file fields definition...")
+                        raise KeyError('Field name for tectonics is not defined correctly or does not exist!')
+
+                if tMapZ is not None:
+                    if self.meshFile[0] != tMapZ[0]:
+                        try:
+                            with open(tMapZ[0]) as tecfile:
+                                pass
+                        except IOError as exc:
+                            print("Unable to open tectonic file: ",tMapZ[0])
+                            raise IOError('The tectonic file {} is not found for climatic event {}.'.format(tMapZ[0],k))
+
+                        mdata = meshio.read(tMapZ[0])
+                        tecSet = mdata.point_data
+                    else:
+                        tecSet = self.mdata.point_data
+                    try:
+                        tecKey = tecSet[tMapZ[1]]
+                    except KeyError as exc:
+                        print("Field name {} is missing from tectonic file {}".format(tMapZ[1],tMapZ[0]))
+                        print("The following fields are available: ",tecSet.keys())
+                        print("Check your tectonic file fields definition...")
+                        raise KeyError('Field name for tectonics is not defined correctly or does not exist!')
+
+
+                if tMapX is None and tMapY is None and tMapZ is None and tUniform is None:
                     print("For each tectonic event a tectonic value (uniform) or a tectonic grid (map) is required.")
                     raise ValueError('Tectonic event {} has no tectonic value (uniform) or a tectonic map (map).'.format(k))
 
                 tmpTec = []
-                if tMap is None:
-                    tmpTec.insert(0, {'start': tecStart, 'tUni': tUniform, 'tMap': None, 'tKey': None})
+                if tUniform is not None:
+                    tmpTec.insert(0, {'start': tecStart, 'tUni': tUniform, 'tMapX': None, 'tMapY': None, 'tMapZ': None,
+                                      'tKeyX': None, 'tKeyY': None, 'tKeyZ': None})
                 else:
-                    tmpTec.insert(0, {'start': tecStart, 'tUni': None, 'tMap': tMap[0], 'tKey': tMap[1]})
+                    if tMapX is None:
+                        tMapX = [None] * 2
+                    if tMapY is None:
+                        tMapY = [None] * 2
+                    if tMapZ is None:
+                        tMapZ = [None] * 2
+                    tmpTec.insert(0, {'start': tecStart, 'tUni': None, 'tMapX': tMapX[0], 'tMapY': tMapY[0], 'tMapZ': tMapZ[0],
+                                      'tKeyX': tMapX[1], 'tKeyY': tMapY[1], 'tKeyZ': tMapZ[1]})
 
                 if k == 0:
-                    tecdata = pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMap', 'tKey'])
+                    tecdata = pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMapX', 'tMapY','tMapZ', 'tKeyX', 'tKeyY', 'tKeyZ'])
                 else:
-                    tecdata = pd.concat([tecdata,pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMap', 'tKey'])],
-                                                       ignore_index=True)
+                    tecdata = pd.concat([tecdata,pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMapX', 'tMapY',
+                                         'tMapZ', 'tKeyX', 'tKeyY', 'tKeyZ'])], ignore_index=True)
 
             if tecdata['start'][0] > self.tStart:
                 tmpTec = []
-                tmpTec.insert(0, {'start': self.tStart, 'tUni': 0., 'tMap': None, 'tKey': None})
-                tecdata = pd.concat([pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMap', 'tKey']),tecdata],
-                                                   ignore_index=True)
+                tmpTec.insert(0, {'start': self.tStart, 'tUni': 0., 'tMapX': None, 'tMapY': None, 'tMapZ': None,
+                                  'tKeyX': None, 'tKeyY': None, 'tKeyZ': None})
+                tecdata = pd.concat([pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMapX', 'tMapY','tMapZ',
+                                    'tKeyX', 'tKeyY', 'tKeyZ']),tecdata], ignore_index=True)
             self.tecdata = tecdata
 
         except KeyError as exc:

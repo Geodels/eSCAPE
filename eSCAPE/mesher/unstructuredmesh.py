@@ -33,6 +33,9 @@ from eSCAPE._fortran import defineTIN
 from eSCAPE._fortran import slpBounds
 from eSCAPE._fortran import flatBounds
 
+from scipy.spatial import cKDTree as _cKDTree
+from scipy.interpolate import CloughTocher2DInterpolator
+
 MPIrank = PETSc.COMM_WORLD.Get_rank()
 MPIsize = PETSc.COMM_WORLD.Get_size()
 MPIcomm = MPI.COMM_WORLD
@@ -90,9 +93,12 @@ class UnstMesh(object):
             elev = np.zeros(coord_shape[0], dtype=np.double)
             self.Gmesh_ngbNbs = None
             self.Gmesh_ngbID = None
+            gcoords = None
 
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, gpoints, op=MPI.MAX)
         self.gpoints = int(gpoints[0])
+        self.gcoords = MPI.COMM_WORLD.bcast(coords, root=0)
+
         if MPIrank == 0 and self.verbose:
             print('Reading mesh information (%0.02f seconds)' % (clock() - t0))
 
@@ -194,8 +200,6 @@ class UnstMesh(object):
         Args:
             coords: mesh coordinates
         """
-
-        from scipy.spatial import cKDTree as _cKDTree
 
         self.lcoords = self.dm.getCoordinatesLocal().array.reshape(-1,3)
         self.npoints = self.lcoords.shape[0]
@@ -451,10 +455,60 @@ class UnstMesh(object):
 
             self.tecNb = nb
             if pd.isnull(self.tecdata['tUni'][nb]):
-                mdata = meshio.read(self.tecdata.iloc[nb,2])
-                tectonic = mdata.point_data[self.tecdata.iloc[nb,3]]
-                self.tectonic = tectonic[self.natural2local]*self.dt
-                # del mdata,tectonic
+
+                # Horizontal displacements along X-axis
+                flagAdvection = False
+                if not pd.isnull(self.tecdata['tMapX'][nb]):
+                    mdata = meshio.read(self.tecdata.iloc[nb,2])
+                    tectonicX = mdata.point_data[self.tecdata.iloc[nb,5]]
+                    flagAdvection = True
+                    del mdata
+                else:
+                    tectonicX = np.zeros(self.gpoints)
+
+                # Horizontal displacements along Y-axis
+                if not pd.isnull(self.tecdata['tMapY'][nb]):
+                    mdata = meshio.read(self.tecdata.iloc[nb,3])
+                    tectonicY = mdata.point_data[self.tecdata.iloc[nb,6]]
+                    flagAdvection = True
+                    del mdata
+                else:
+                    tectonicY = np.zeros(self.gpoints)
+
+                # Vertical displacements
+                if self.sphere == 0:
+                    if not pd.isnull(self.tecdata['tMapZ'][nb]):
+                        mdata = meshio.read(self.tecdata.iloc[nb,4])
+                        tectonic = mdata.point_data[self.tecdata.iloc[nb,7]]
+                        self.tectonic = tectonic[self.natural2local]*self.dt
+                        del mdata,tectonic
+                    else:
+                        tectonic = np.zeros(len(self.elev))
+                        self.tectonic = tectonic[self.natural2local]
+                        del tectonic
+                else:
+                    if not pd.isnull(self.tecdata['tMapZ'][nb]):
+                        mdata = meshio.read(self.tecdata.iloc[nb,4])
+                        tectonicZ = mdata.point_data[self.tecdata.iloc[nb,7]]
+                    else:
+                        tectonicZ = np.zeros(self.gpoints)
+
+                    tectonic = np.zeros(len(self.elev))
+                    self.tectonic = tectonic[self.natural2local]
+                    del tectonic
+
+                if flagAdvection:
+                    if nb < len(self.tecdata.index)-1:
+                        timer = self.tecdata.iloc[nb+1,0]-self.tecdata.iloc[nb,0]
+                    else:
+                        timer = self.tEnd-self.tecdata.iloc[nb,0]
+
+                    if self.sphere == 0:
+                        self._meshAdvector(tectonicX, tectonicY, timer)
+                        del tectonicX, tectonicY
+                    else:
+                        self._meshAdvectorSphere(tectonicX, tectonicY, tectonicZ, timer)
+                        del tectonicX, tectonicY, tectonicZ
             else:
                 tectonic = np.full(len(self.elev),self.tecdata.iloc[self.tecNb,1])
                 self.tectonic = tectonic[self.natural2local]*self.dt
@@ -470,6 +524,147 @@ class UnstMesh(object):
             self.hLocal.setArray(localZ.reshape(-1))
             self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
             self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+
+        return
+
+    def _meshAdvector(self, tectonicX, tectonicY, timer):
+        """
+        Advect the mesh horizontally and interpolate mesh information
+        """
+
+        # Move horizontally coordinates
+        XYZ = np.zeros((self.gpoints,3))
+        XYZ[:,0] = self.gcoords[:,0] + tectonicX*timer
+        XYZ[:,1] = self.gcoords[:,1] + tectonicY*timer
+
+        # Get mesh variables to interpolate
+        # Elevation
+        elev = np.zeros(self.gpoints)
+        elev.fill(-1.e8)
+        elev[self.natural2local] = self.hLocal.getArray().copy()
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, elev, op=MPI.MAX)
+        interpolator = CloughTocher2DInterpolator(XYZ[:,:2],elev)
+        nelev = interpolator(self.lcoords[:,:2])
+        id_NaNs = np.isnan(nelev)
+        nelev[id_NaNs] = 0.
+
+        # Erosion/deposition
+        erodep = np.zeros(self.gpoints)
+        erodep.fill(-1.e8)
+        erodep[self.natural2local] = self.cumEDLocal.getArray().copy()
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, erodep, op=MPI.MAX)
+        interpolator = CloughTocher2DInterpolator(XYZ[:,:2],erodep)
+        nerodep = interpolator(self.lcoords[:,:2])
+        nerodep[id_NaNs] = 0.
+
+        # Soil thickness
+        if self.Ksed > 0.:
+            soil = np.zeros(self.gpoints)
+            soil.fill(-1.e8)
+            soil[self.natural2local] = self.HsoilLocal.getArray().copy()
+            MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, soil, op=MPI.MAX)
+            interpolator = CloughTocher2DInterpolator(XYZ[:,:2],soil)
+            nsoil = interpolator(self.lcoords[:,:2])
+            nsoil[id_NaNs] = 0.
+
+        # Build kd-tree
+        tree = _cKDTree(XYZ)
+        distances, indices = tree.query(self.lcoords[id_NaNs,:], k=10)
+
+        # Inverse weighting distance...
+        weights = 1.0 / distances**2
+        onIDs = np.where(distances[:,0] == 0)[0]
+
+        nelev[id_NaNs] = np.sum(weights*elev[indices],axis=1)/np.sum(weights, axis=1)
+
+        self.hLocal.setArray(nelev)
+        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+        del elev, nelev
+
+        self.cumEDLocal.setArray(nerodep)
+        self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+        self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
+        del erodep, nerodep
+
+        if self.Ksed > 0.:
+            self.HsoilLocal.setArray(nsoil)
+            self.dm.localToGlobal(self.HsoilLocal, self.Hsoil, 1)
+            self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
+            del soil, nsoil
+
+        del XYZ, tree, weights, distances, indices
+
+        return
+
+    def _meshAdvectorSphere(self, tectonicX, tectonicY, tectonicZ, timer):
+        """
+        Advect spherical mesh horizontally and interpolate mesh information
+        """
+
+        # Move coordinates
+        XYZ = np.zeros((self.gpoints,3))
+        XYZ[:,0] = self.gcoords[:,0] + tectonicX*timer
+        XYZ[:,1] = self.gcoords[:,1] + tectonicY*timer
+        XYZ[:,2] = self.gcoords[:,2] + tectonicZ*timer
+
+        # Get mesh variables to interpolate
+        # Elevation
+        elev = np.zeros(self.gpoints)
+        elev.fill(-1.e8)
+        elev[self.natural2local] = self.hLocal.getArray().copy()
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, elev, op=MPI.MAX)
+
+        # Erosion/deposition
+        erodep = np.zeros(self.gpoints)
+        erodep.fill(-1.e8)
+        erodep[self.natural2local] = self.cumEDLocal.getArray().copy()
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, erodep, op=MPI.MAX)
+
+        # Soil thickness
+        if self.Ksed > 0.:
+            soil = np.zeros(self.gpoints)
+            soil.fill(-1.e8)
+            soil[self.natural2local] = self.HsoilLocal.getArray().copy()
+            MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, soil, op=MPI.MAX)
+
+
+        # Build kd-tree
+        tree = _cKDTree(XYZ)
+        distances, indices = tree.query(self.lcoords, k=10)
+
+        # Inverse weighting distance...
+        weights = 1.0 / distances**2
+        onIDs = np.where(distances[:,0] == 0)[0]
+
+        nelev = np.sum(weights*elev,axis=1)/np.sum(weights, axis=1)
+        nerodep = np.sum(weights*erodep,axis=1)/np.sum(weights, axis=1)
+        if self.Ksed > 0.:
+            nsoil = np.sum(weights*soil,axis=1)/np.sum(weights, axis=1)
+
+        if len(onIDs)>0:
+            nelev[onIDs] = elev[indices[onIDs,0]]
+            nerodep[onIDs] = erodep[indices[onIDs,0]]
+            if self.Ksed > 0.:
+                nsoil[onIDs] = soil[indices[onIDs,0]]
+
+        self.hLocal.setArray(nelev)
+        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+        del elev, nelev
+
+        self.cumEDLocal.setArray(nerodep)
+        self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+        self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
+        del erodep, nerodep
+
+        if self.Ksed > 0.:
+            self.HsoilLocal.setArray(nsoil)
+            self.dm.localToGlobal(self.HsoilLocal, self.Hsoil, 1)
+            self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
+            del soil, nsoil
+
+        del XYZ, tree, weights, distances, indices
 
         return
 
