@@ -123,33 +123,42 @@ class UnstPit(object):
             eps = 1.e-8
             seaIDs = np.where(melev<self.sl_limit)[0]
             fill,wshed,pitvol,pith,pitNode = self.eScapeGPit.performPitFillingEpsilon(melev,seaIDs,eps,type=1)
+            tmp1 = np.concatenate((fill,wshed))
+            tmp2 = np.concatenate((pitvol,pith,pitNode))
+            tot[0] = len(pitNode)
+            del fill,wshed,pitvol,pith,pitNode
         else:
-            fill = None
-            wshed = None
-            pitvol = None
-            pith = None
-            pitNode = None
+            tmp1 = None
+            tmp2 = None
+            tot[0] = 0.
         del melev
 
-        self.pHeight = MPI.COMM_WORLD.bcast(pith, root=0)
-        self.pVol = MPI.COMM_WORLD.bcast(pitvol, root=0)
-        pNode = MPI.COMM_WORLD.bcast(pitNode, root=0)
-        self.pitProc = -np.ones(len(pNode),dtype=int)
-        self.pitNode = -np.ones(len(pNode),dtype=int)
-        for k in range(len(pNode)):
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, tot, op=MPI.MAX)
+        gtmp2 = MPI.COMM_WORLD.bcast(tmp2, root=0)
+
+        self.pVol = gtmp2[:tot[0]]
+        self.pHeight = gtmp2[tot[0]:2*tot[0]]
+        pNode = gtmp2[2*tot[0]:]
+
+        tmp3 = -np.ones(2*tot[0],dtype=int)
+        for k in range(tot[0]):
             ids = np.where(self.natural2local==pNode[k])[0]
             if len(ids) > 0 and self.inIDs[ids[0]] == 1:
-                self.pitProc[k] = MPIrank
-                self.pitNode[k] = ids[0]
-        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, self.pitProc, op=MPI.MAX)
-        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, self.pitNode, op=MPI.MAX)
+                tmp3[k] = MPIrank
+                tmp3[k+tot[0]] = ids[0]
 
-        gfill = MPI.COMM_WORLD.bcast(fill, root=0)
-        gwshed = MPI.COMM_WORLD.bcast(wshed, root=0)
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, tmp3, op=MPI.MAX)
+        self.pitProc = tmp3[:tot[0]]
+        self.pitNode = tmp3[tot[0]:]
+
+        gtmp1 = MPI.COMM_WORLD.bcast(tmp1, root=0)
+        gfill = gtmp1[:self.gpoints]
+        gwshed = gtmp1[self.gpoints:]
 
         fillLocal = gfill[self.natural2local]
         wshedLocal = gwshed[self.natural2local]
-        del fill, gfill, wshed, gwshed, pitvol, pith, pitNode, h
+        del gfill, gwshed, h
+        del tmp3, tmp2, tmp1, gtmp1, pNode
 
         self.fillLocal.setArray(fillLocal)
         del fillLocal
