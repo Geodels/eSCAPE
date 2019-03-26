@@ -916,6 +916,8 @@ class SPMesh(object):
             elev = self.hLocal.getArray().copy()
             dh = elev-h0
             dh[dh<0] = 0.
+            dh[self.idGBounds] = 0.
+
             # Diffusion matrix construction
             newz = explicitDiff(self.sedimentK*self.diff_dt, limit, elev,
                                       h0-self.sealevel, dh)
