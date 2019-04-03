@@ -396,12 +396,7 @@ subroutine explicitDiff(Kd, limit, elev, elev0, dh, newz, nb)
             pp = QinID(k,p)
             Qsin(n,pp) = Qsin(n,pp) + Qsout
             SumQs(k) = SumQs(k) + Qsout
-            if(i==0)then
-              i = 1
-              zm = elev(n)
-            else
-              zm = max(zm,elev(n))
-            endif
+            zm = min(zm,elev(n))
           endif
         enddo
         if(SumQs(k)>0.)then

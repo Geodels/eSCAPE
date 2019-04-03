@@ -915,7 +915,6 @@ class SPMesh(object):
             elev = self.hLocal.getArray().copy()
             dh = elev-h0
             dh[dh<0] = 0.
-            dh[self.idGBounds] = 0.
             # Diffusion matrix construction
             newz = explicitDiff(self.sedimentK*self.diff_dt, limit, elev,
                                       h0-self.sealevel, dh)
@@ -930,7 +929,6 @@ class SPMesh(object):
         # Update elevation change vector
         dh = hL0-h0
         dh[dh<0] = 0.
-        dh[self.idGBounds] = 0.
         self.tmpL.setArray(dh)
         self.dm.localToGlobal(self.tmpL, self.stepED, 1)
         self.dm.globalToLocal(self.stepED, self.tmpL, 1)
