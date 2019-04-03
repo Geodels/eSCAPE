@@ -34,11 +34,13 @@ module meshparams
 
   integer :: nLocal
   integer, dimension(:,:), allocatable :: FVnID
+  integer, dimension(:,:), allocatable :: QinID
   integer, dimension(:), allocatable :: FVnNb
 
   real( kind=8 ), dimension(:), allocatable :: FVarea
   real( kind=8 ), dimension(:,:), allocatable :: FVeLgt
   real( kind=8 ), dimension(:,:), allocatable :: FVvDist
+
 
 end module meshparams
 
@@ -371,26 +373,100 @@ subroutine explicitDiff(Kd, limit, elev, elev0, dh, newz, nb)
 
     real( kind=8 ), intent(out) :: newz(nb)
 
+    integer :: k, p, n, i, pp
+    real( kind=8 ) :: c, v, Qsout, zm, dhdt_dt
+    real( kind=8 ) :: SumQs(nb), sf(nb), Qsin(nb,12)
+
+
+    newz = elev
+    sf = 0.
+    SumQs = 0.
+    Qsin = 0.
+
+    do k = 1, nb
+      if(FVarea(k)>0 .and. dh(k)>0. .and. elev0(k)<=0.)then
+        c = Kd/FVarea(k)
+        i = 0
+        zm = elev(k)
+        do p = 1, FVnNb(k)
+          n = FVnID(k,p)+1
+          v = c*FVvDist(k,p)/FVeLgt(k,p)
+          if(elev(k)>elev(n))then
+            Qsout = v*(elev(k)-elev(n))
+            pp = QinID(k,p)
+            Qsin(n,pp) = Qsin(n,pp) + Qsout
+            SumQs(k) = SumQs(k) + Qsout
+            if(i==0)then
+              i = 1
+              zm = elev(n)
+            else
+              zm = max(zm,elev(n))
+            endif
+          endif
+        enddo
+        if(SumQs(k)>0.)then
+          sf(k) = min(dh(k),limit*(elev(k)-zm))
+          sf(k) = sf(k)/sumQs(k)
+          sf(k) = min(sf(k),1.)
+        endif
+      endif
+    enddo
+
+    do k = 1, nb
+      dhdt_dt = 0.
+      if(FVarea(k)>0 .and. elev0(k)<=0.)then
+        dhdt_dt = -sf(k)*SumQs(k)
+        do p = 1, FVnNb(k)
+          n = FVnID(k,p)+1
+          dhdt_dt = dhdt_dt + sf(n)*Qsin(k,p)
+        enddo
+        newz(k) = newz(k) + dhdt_dt
+      endif
+    enddo
+
+    return
+
+end subroutine explicitDiff
+
+subroutine explicitDiffOld(Kd, limit, elev, elev0, dh, newz, nb)
+!*****************************************************************************
+! Define freshly deposited sediments diffusion explicitly
+
+    use meshparams
+    implicit none
+
+    integer :: nb
+
+    real( kind=8 ), intent(in) :: Kd
+    real( kind=8 ), intent(in) :: limit
+    real( kind=8 ), intent(in) :: elev(nb)
+    real( kind=8 ), intent(in) :: elev0(nb)
+    real( kind=8 ), intent(in) :: dh(nb)
+
+    real( kind=8 ), intent(out) :: newz(nb)
+
     integer :: k, p, n
-    real( kind=8 ) :: vals
+    real( kind=8 ) :: vals !, maxe
     real( kind=8 ) :: s1, c, v, limiter
 
     newz = elev
     do k = 1, nb
       s1 = 0.
       vals = 0.
-
       if(FVarea(k)>0)then
         c = Kd/FVarea(k)
         do p = 1, FVnNb(k)
+          ! maxe = 0.
           if(FVvDist(k,p)>0.)then
             v = c*FVvDist(k,p)/FVeLgt(k,p)
             n = FVnID(k,p)+1
             limiter = 0.
             if(elev(n)>elev(k) .and. elev0(n)<0.)then
               limiter = dh(n)/(dh(n)+limit)
+              ! maxe = 0.1*dh(n)
             elseif(elev(n)<elev(k) .and. elev0(k)<0.)then
               limiter = dh(k)/(dh(k)+limit)
+              ! maxe = 0.1*dh(k)
             endif
             s1 = s1 + v*limiter
             vals = vals + v*limiter*elev(n)
@@ -402,7 +478,7 @@ subroutine explicitDiff(Kd, limit, elev, elev0, dh, newz, nb)
 
     return
 
-end subroutine explicitDiff
+end subroutine explicitDiffOld
 
 subroutine distributeHeight( inIDs, sl, elev, elev0, sed, nelev, nsed, nb )
 !*****************************************************************************
@@ -796,6 +872,45 @@ subroutine minHeight( inIDs, elev, hmin, nb)
 end subroutine minHeight
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! PIT FILLING FUNCTION !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+subroutine pitData( rank, pnode, inids, natural, tmp3, nb, nb1, nb2 )
+!*****************************************************************************
+! Compute pit information: processor rank and local point ID
+
+  implicit none
+
+  integer :: nb, nb1, nb2
+
+  integer, intent(in) :: rank
+  integer, intent(in) :: pnode(nb)
+  integer, intent(in) :: inids(nb1)
+  integer, intent(in) :: natural(nb2)
+
+  integer, intent(out) :: tmp3(nb*2)
+
+  integer :: k, p
+
+  tmp3 = -1
+
+  do k = 1, nb
+    loop: do p = 1, nb2
+      if( natural(p) == pnode(k) )then
+        if( inids(p) == 1 )then
+          tmp3(k) = rank
+          tmp3(k+nb) = p-1
+          exit loop
+        endif
+      endif
+    enddo loop
+  enddo
+
+  return
+
+end subroutine pitData
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! MESH DECLARATION FUNCTIONS !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -947,18 +1062,33 @@ subroutine defineTIN( coords, cells_nodes, cells_edges, edges_nodes, area, circu
   if(allocated(FVnNb)) deallocate(FVnNb)
   if(allocated(FVeLgt)) deallocate(FVeLgt)
   if(allocated(FVvDist)) deallocate(FVvDist)
+  if(allocated(QinID)) deallocate(QinID)
 
   allocate(FVarea(nLocal))
   allocate(FVnNb(nLocal))
   allocate(FVnID(nLocal,12))
   allocate(FVeLgt(nLocal,12))
   allocate(FVvDist(nLocal,12))
+  allocate(QinID(nLocal,12))
 
   FVarea = area
   FVnNb = ngbNb
   FVnID = ngbID
   FVeLgt = edgeLgt
   FVvDist = voroDist
+
+  QinID = -1
+  do k = 1, nLocal
+    do p = 1, FVnNb(k)
+      l = FVnID(k,p)+1
+      lpp: do e = 1, FVnNb(l)
+        if(FVnID(l,e)+1 == k)then
+          QinID(k,p) = e
+          exit lpp
+        endif
+      enddo lpp
+    enddo
+  enddo
 
 end subroutine defineTIN
 

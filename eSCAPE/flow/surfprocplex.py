@@ -53,7 +53,7 @@ class SPMesh(object):
         val[0] = X.min()
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, val, op=MPI.MIN)
         minlgth = val[0]
-        dt = np.divide(np.square(val[0]),2.*self.sedimentK)
+        dt = 0.1*np.divide(np.square(val[0]),2.*self.sedimentK)
         self.diff_step = int(self.dt/dt) + 1
         self.diff_dt = self.dt/float(self.diff_step)
         del X, val
@@ -829,7 +829,7 @@ class SPMesh(object):
 
         it = 0
         flag = False
-        limit = 1.e-12
+        limit = 1.e-2
         dt = self.dt/float(self.maxIters)
         step = int(self.dt/dt) + 1
 
@@ -898,7 +898,7 @@ class SPMesh(object):
             return
 
         it = 0
-        limit = 1.e-12
+        limit = 0.9
 
         # Elevation without freshly deposited sediment thickness
         self.hLocal.copy(result=self.hOldLocal)
@@ -907,7 +907,6 @@ class SPMesh(object):
         # Local elevation adding newly deposited thickness
         self.hLocal.axpy(1.,self.seaL)
         hL0 = self.hLocal.getArray().copy()
-
         while(it<self.diff_step):
             elev = hL0
             self.hLocal.setArray(elev)
@@ -917,7 +916,6 @@ class SPMesh(object):
             dh = elev-h0
             dh[dh<0] = 0.
             dh[self.idGBounds] = 0.
-
             # Diffusion matrix construction
             newz = explicitDiff(self.sedimentK*self.diff_dt, limit, elev,
                                       h0-self.sealevel, dh)
@@ -930,6 +928,9 @@ class SPMesh(object):
             it += 1
 
         # Update elevation change vector
+        dh = hL0-h0
+        dh[dh<0] = 0.
+        dh[self.idGBounds] = 0.
         self.tmpL.setArray(dh)
         self.dm.localToGlobal(self.tmpL, self.stepED, 1)
         self.dm.globalToLocal(self.stepED, self.tmpL, 1)

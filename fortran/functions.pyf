@@ -131,6 +131,19 @@ python module _fortran ! in
 
       end subroutine minHeight
 
+      subroutine pitData(rank,pnode,inids,natural,tmp3,nb,nb1,nb2)
+
+          integer ,intent(in) :: rank
+          integer dimension(nb),intent(in) :: pnode
+          integer dimension(nb1),intent(in) :: inids
+          integer dimension(nb2),intent(in) :: natural
+          integer dimension(2*nb),intent(out),depend(nb) :: tmp3
+          integer, optional,check(len(pnode)>=nb),depend(pnode) :: nb=len(pnode)
+          integer, optional,check(len(inids)>=nb1),depend(inids) :: nb1=len(inids)
+          integer, optional,check(len(inids)>=nb2),depend(natural) :: nb2=len(natural)
+
+      end subroutine pitData
+
       subroutine MFDreceivers(nrcv,inids,elev,rcv,slope,dist,wgt,nb)
 
           integer intent(in) :: nrcv

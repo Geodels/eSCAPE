@@ -8,6 +8,7 @@
 #define  setHillslopeCoeff  sethillslopecoeff
 #define  diffusionDT  diffusiondt
 #define  minHeight   minheight
+#define  pitData   pitdata
 #define  MFDreceivers   mfdreceivers
 #define  defineTIN   definetin
 #define  defineGTIN   definegtin
@@ -22,6 +23,7 @@
 #define  setHillslopeCoeff_   sethillslopecoeff_
 #define  diffusionDT_  diffusiondt_
 #define  minHeight_   minheight_
+#define  pitData_   pitdata_
 #define  MFDreceivers_   mfdreceivers_
 #define  defineTIN_   definetin_
 #define  defineGTIN_   definegtin_
@@ -36,6 +38,7 @@
 #define  _setHillslopeCoeff   _sethillslopecoeff
 #define  _diffusionDT  _diffusiondt
 #define  _minHeight   _minheight
+#define  _pitData   _pitdata
 #define  _MFDreceivers  _mfdreceivers
 #define  _defineTIN  _definetin
 #define  _defineGTIN  _definegtin
@@ -50,6 +53,7 @@
 #define  _setHillslopeCoeff_   _sethillslopecoeff_
 #define  _diffusionDT_  _diffusiondt_
 #define  _minHeight_   _minheight_
+#define  _pitData_   _pitdata_
 #define  _MFDreceivers_  _mfdreceivers_
 #define  _defineTIN_   _definetin_
 #define  _defineGTIN_   _definegtin_

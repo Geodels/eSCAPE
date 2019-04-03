@@ -25,6 +25,7 @@ from time import clock
 import warnings;warnings.simplefilter('ignore')
 
 import fillit as fillAlgo
+from eSCAPE._fortran import pitData
 
 MPIrank = PETSc.COMM_WORLD.Get_rank()
 MPIsize = PETSc.COMM_WORLD.Get_size()
@@ -106,7 +107,6 @@ class UnstPit(object):
             return
 
         t0 = clock()
-
         elev = np.zeros(self.gpoints)
         elev.fill(-1.e8)
         h = self.hLocal.getArray().copy()
@@ -125,32 +125,27 @@ class UnstPit(object):
             fill,wshed,pitvol,pith,pitNode = self.eScapeGPit.performPitFillingEpsilon(melev,seaIDs,eps,type=1)
             tmp1 = np.concatenate((fill,wshed))
             tmp2 = np.concatenate((pitvol,pith,pitNode))
-            tot[0] = len(pitNode)
+            nn = len(pitNode)
             del fill,wshed,pitvol,pith,pitNode
         else:
             tmp1 = None
             tmp2 = None
-            tot[0] = 0.
+            nn = None
         del melev
 
-        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, tot, op=MPI.MAX)
+        MPI.COMM_WORLD.Barrier()
+        nb = MPI.COMM_WORLD.bcast(nn, root=0)
         gtmp2 = MPI.COMM_WORLD.bcast(tmp2, root=0)
+        self.pVol = gtmp2[:nb]
+        self.pHeight = gtmp2[nb:2*nb]
+        pNode = gtmp2[2*nb:]
 
-        self.pVol = gtmp2[:tot[0]]
-        self.pHeight = gtmp2[tot[0]:2*tot[0]]
-        pNode = gtmp2[2*tot[0]:]
-
-        tmp3 = -np.ones(2*tot[0],dtype=int)
-        for k in range(tot[0]):
-            ids = np.where(self.natural2local==pNode[k])[0]
-            if len(ids) > 0 and self.inIDs[ids[0]] == 1:
-                tmp3[k] = MPIrank
-                tmp3[k+tot[0]] = ids[0]
+        # Make the for loop in fortran!!!!
+        tmp3 = pitData(MPIrank,pNode,self.inIDs,self.natural2local)
 
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, tmp3, op=MPI.MAX)
-        self.pitProc = tmp3[:tot[0]]
-        self.pitNode = tmp3[tot[0]:]
-
+        self.pitProc = tmp3[:nb]
+        self.pitNode = tmp3[nb:]
         gtmp1 = MPI.COMM_WORLD.bcast(tmp1, root=0)
         gfill = gtmp1[:self.gpoints]
         gwshed = gtmp1[self.gpoints:]
@@ -162,7 +157,6 @@ class UnstPit(object):
 
         self.fillLocal.setArray(fillLocal)
         del fillLocal
-
         self.dm.localToGlobal(self.fillLocal, self.fillGlobal, 1)
         self.dm.globalToLocal(self.fillGlobal, self.fillLocal, 1)
 
