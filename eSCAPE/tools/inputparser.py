@@ -351,14 +351,9 @@ class ReadYaml(object):
                 self.sedimentK = hillDict['sedimentK']
             except KeyError as exc:
                 self.sedimentK = 10.
-            # try:
-            #     self.maxIters = hillDict['maxIT']
-            # except KeyError as exc:
-            #     self.maxIters = 0
         except KeyError as exc:
             self.Cd = 0.
             self.sedimentK = 10.
-            # self.maxIters = 500
 
         return
 
@@ -531,6 +526,8 @@ class ReadYaml(object):
                 tMapY = None
                 tMapZ = None
                 tUniform = None
+                tEnd = None
+                tStep = None
                 try:
                     tecStart = tecSort[k]['start']
                 except:
@@ -550,6 +547,14 @@ class ReadYaml(object):
                     pass
                 try:
                     tMapZ = tecSort[k]['mapZ']
+                except:
+                    pass
+                try:
+                    tStep = tecSort[k]['step']
+                except:
+                    pass
+                try:
+                    tEnd = tecSort[k]['end']
                 except:
                     pass
 
@@ -642,6 +647,17 @@ class ReadYaml(object):
                     tecdata = pd.concat([tecdata,pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMapX', 'tMapY',
                                          'tMapZ', 'tKeyX', 'tKeyY', 'tKeyZ'])], ignore_index=True)
 
+                if tStep is not None:
+                    if tEnd is not None:
+                        tectime = tecStart+tStep
+                        while tectime<tEnd:
+                            tmpTec = []
+                            tmpTec.insert(0, {'start': tectime, 'tUni': None, 'tMapX': tMapX[0], 'tMapY': tMapY[0], 'tMapZ': tMapZ[0],
+                                              'tKeyX': tMapX[1], 'tKeyY': tMapY[1], 'tKeyZ': tMapZ[1]})
+                            tecdata = pd.concat([tecdata,pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMapX', 'tMapY','tMapZ',
+                                                'tKeyX', 'tKeyY', 'tKeyZ'])], ignore_index=True)
+                            tectime = tectime+tStep
+
             if tecdata['start'][0] > self.tStart:
                 tmpTec = []
                 tmpTec.insert(0, {'start': self.tStart, 'tUni': 0., 'tMapX': None, 'tMapY': None, 'tMapZ': None,
@@ -649,7 +665,7 @@ class ReadYaml(object):
                 tecdata = pd.concat([pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMapX', 'tMapY','tMapZ',
                                     'tKeyX', 'tKeyY', 'tKeyZ']),tecdata], ignore_index=True)
             self.tecdata = tecdata
-
+            
         except KeyError as exc:
             self.tecdata = None
             pass

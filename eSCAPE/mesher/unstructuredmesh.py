@@ -125,6 +125,7 @@ class UnstMesh(object):
         # Define mesh characteristics
         Tmesh = meshplex.mesh_tri.MeshTri(self.lcoords, self.lcells)
         self.FVmesh_area = np.abs(Tmesh.control_volumes)
+        self.FVmesh_area[np.isnan(self.FVmesh_area)] = 1.
         self.boundary, self.localboundIDs = self._get_boundary()
         self.gbds = self.boundary.astype(int)
 
@@ -164,6 +165,7 @@ class UnstMesh(object):
         areaLocal = self.hLocal.duplicate()
         self.areaGlobal = self.hGlobal.duplicate()
         areaLocal.setArray(self.FVmesh_area)
+
         self.dm.localToGlobal(areaLocal, self.areaGlobal)
         self.dm.globalToLocal(self.areaGlobal, areaLocal)
         self.FVmesh_Garea = self.areaGlobal.getArray().copy()
@@ -604,9 +606,10 @@ class UnstMesh(object):
 
         # Move coordinates
         XYZ = np.zeros((self.gpoints,3))
-        XYZ[:,0] = self.gcoords[:,0] + tectonicX*timer
-        XYZ[:,1] = self.gcoords[:,1] + tectonicY*timer
-        XYZ[:,2] = self.gcoords[:,2] + tectonicZ*timer
+        XYZ[:,0] = tectonicX #self.gcoords[:,0] + tectonicX*timer
+        XYZ[:,1] = tectonicY #self.gcoords[:,1] + tectonicY*timer
+        XYZ[:,2] = tectonicZ #self.gcoords[:,2] + tectonicZ*timer
+        XYZ = XYZ[1:]
 
         # Get mesh variables to interpolate
         # Elevation
@@ -614,12 +617,14 @@ class UnstMesh(object):
         elev.fill(-1.e8)
         elev[self.natural2local] = self.hLocal.getArray().copy()
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, elev, op=MPI.MAX)
+        elev = elev[1:]
 
         # Erosion/deposition
         erodep = np.zeros(self.gpoints)
         erodep.fill(-1.e8)
         erodep[self.natural2local] = self.cumEDLocal.getArray().copy()
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, erodep, op=MPI.MAX)
+        erodep = erodep[1:]
 
         # Soil thickness
         if self.Ksed > 0.:
@@ -627,7 +632,7 @@ class UnstMesh(object):
             soil.fill(-1.e8)
             soil[self.natural2local] = self.HsoilLocal.getArray().copy()
             MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, soil, op=MPI.MAX)
-
+            soil = soil[1:]
 
         # Build kd-tree
         tree = _cKDTree(XYZ)
@@ -637,10 +642,10 @@ class UnstMesh(object):
         weights = 1.0 / distances**2
         onIDs = np.where(distances[:,0] == 0)[0]
 
-        nelev = np.sum(weights*elev,axis=1)/np.sum(weights, axis=1)
-        nerodep = np.sum(weights*erodep,axis=1)/np.sum(weights, axis=1)
+        nelev = np.sum(weights*elev[indices],axis=1)/np.sum(weights, axis=1)
+        nerodep = np.sum(weights*erodep[indices],axis=1)/np.sum(weights, axis=1)
         if self.Ksed > 0.:
-            nsoil = np.sum(weights*soil,axis=1)/np.sum(weights, axis=1)
+            nsoil = np.sum(weights*soil[indices],axis=1)/np.sum(weights, axis=1)
 
         if len(onIDs)>0:
             nelev[onIDs] = elev[indices[onIDs,0]]
