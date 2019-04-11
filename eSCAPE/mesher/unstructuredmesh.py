@@ -17,6 +17,7 @@
 ###
 
 import numpy as np
+import pandas as pd
 from mpi4py import MPI
 import sys,petsc4py
 petsc4py.init(sys.argv)
@@ -27,10 +28,13 @@ import warnings;warnings.simplefilter('ignore')
 import meshio
 import meshplex
 
+from eSCAPE._fortran import defineGTIN
 from eSCAPE._fortran import defineTIN
-from eSCAPE._fortran import meanSlope
 from eSCAPE._fortran import slpBounds
 from eSCAPE._fortran import flatBounds
+
+from scipy.spatial import cKDTree as _cKDTree
+from scipy.interpolate import CloughTocher2DInterpolator
 
 MPIrank = PETSc.COMM_WORLD.Get_rank()
 MPIsize = PETSc.COMM_WORLD.Get_size()
@@ -50,12 +54,35 @@ class UnstMesh(object):
         # Define mesh attributes on root processor
         t0 = clock()
         t = clock()
+        gpoints = np.zeros(1)
         if MPIrank == 0:
             cells = np.asarray(self.mdata.cells['triangle'], dtype=np.int32)
             coords = np.asarray(self.mdata.points, dtype=np.double)
             MPIcomm.bcast(cells.shape, root=0)
             MPIcomm.bcast(coords.shape, root=0)
             elev = self.mdata.point_data[filename[1]]
+            gpoints[0] = len(coords)
+            if self.verbose:
+                print('Extract information (%0.02f seconds)'% (clock() - t))
+            t = clock()
+            Gmesh = meshplex.mesh_tri.MeshTri(coords, cells)
+            if self.verbose:
+                print('Reading meshplex meshtri (%0.02f seconds)'% (clock() - t))
+            t = clock()
+            Gmesh.mark_boundary()
+            if self.verbose:
+                print('Mark boundary TIN (%0.02f seconds)'% (clock() - t))
+            ids = np.arange(0, len(Gmesh.node_coords), dtype=int)
+            self.boundGlob = ids[Gmesh._is_boundary_node]
+            t = clock()
+            Gmesh.create_edges()
+            if self.verbose:
+                print('Defining edges TIN (%0.02f seconds)'% (clock() - t))
+            t = clock()
+            self.Gmesh_ngbNbs, self.Gmesh_ngbID = defineGTIN(gpoints[0], Gmesh.cells['nodes'], Gmesh.edges['nodes'])
+            if self.verbose:
+                print('Defining global TIN (%0.02f seconds)'% (clock() - t))
+            del Gmesh, ids
         else:
             cell_shape = list(MPIcomm.bcast(None, root=0))
             coord_shape = list(MPIcomm.bcast(None, root=0))
@@ -64,13 +91,25 @@ class UnstMesh(object):
             cells = np.zeros(cell_shape, dtype=np.int32)
             coords = np.zeros(coord_shape, dtype=np.double)
             elev = np.zeros(coord_shape[0], dtype=np.double)
+            self.Gmesh_ngbNbs = None
+            self.Gmesh_ngbID = None
+            gcoords = None
+
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, gpoints, op=MPI.MAX)
+        self.gpoints = int(gpoints[0])
+        self.gcoords = MPI.COMM_WORLD.bcast(coords, root=0)
+
         if MPIrank == 0 and self.verbose:
-            print('Reading mesh information (%0.02f seconds)' % (clock() - t))
+            print('Reading mesh information (%0.02f seconds)' % (clock() - t0))
 
         # Create DMPlex
+        t = clock()
         self._create_DMPlex(dim, coords, cells, elev)
+        if MPIrank == 0 and self.verbose:
+            print('Creating Petsc DMPlex (%0.02f seconds)'% (clock() - t))
 
         # Define local vertex & cells
+        t = clock()
         cStart, cEnd = self.dm.getHeightStratum(0)
         # Dealing with triangular cells only
         self.lcells = np.zeros((cEnd-cStart,3), dtype=PETSc.IntType)
@@ -78,16 +117,17 @@ class UnstMesh(object):
             point_closure = self.dm.getTransitiveClosure(c)[0]
             self.lcells[c,:] = point_closure[-3:]-cEnd
         del point_closure
-
         if MPIrank == 0 and self.verbose:
-            print('Defining Petsc DMPlex (%0.02f seconds)'% (clock() - t))
+            print('Defining local DMPlex (%0.02f seconds)'% (clock() - t))
 
         # Create mesh structure with meshplex
         t = clock()
         # Define mesh characteristics
         Tmesh = meshplex.mesh_tri.MeshTri(self.lcoords, self.lcells)
         self.FVmesh_area = np.abs(Tmesh.control_volumes)
+        self.FVmesh_area[np.isnan(self.FVmesh_area)] = 1.
         self.boundary, self.localboundIDs = self._get_boundary()
+        self.gbds = self.boundary.astype(int)
 
         # Voronoi and simplices declaration
         coords = Tmesh.node_coords
@@ -104,7 +144,7 @@ class UnstMesh(object):
         t = clock()
         self.FVmesh_ngbNbs, self.FVmesh_ngbID, self.FVmesh_edgeLgt, \
                 self.FVmesh_voroDist = defineTIN(coords, cells_nodes, cells_edges,
-                                                                        edges_nodes, self.FVmesh_area, cc)
+                                                 edges_nodes, self.FVmesh_area, cc.T)
 
         if MPIrank == 0 and self.verbose:
             print('Tesselation (%0.02f seconds)'% (clock() - t))
@@ -112,6 +152,7 @@ class UnstMesh(object):
         self.bL = self.hLocal.duplicate()
         self.bG = self.hGlobal.duplicate()
         self.stepED = self.hGlobal.duplicate()
+        self.stepEDL = self.hLocal.duplicate()
         self.vSed = self.hGlobal.duplicate()
         self.vSedLocal = self.hLocal.duplicate()
         self.diffDep = self.hGlobal.duplicate()
@@ -124,6 +165,7 @@ class UnstMesh(object):
         areaLocal = self.hLocal.duplicate()
         self.areaGlobal = self.hGlobal.duplicate()
         areaLocal.setArray(self.FVmesh_area)
+
         self.dm.localToGlobal(areaLocal, self.areaGlobal)
         self.dm.globalToLocal(self.areaGlobal, areaLocal)
         self.FVmesh_Garea = self.areaGlobal.getArray().copy()
@@ -133,8 +175,20 @@ class UnstMesh(object):
         self.cumED.set(0.0)
         self.cumEDLocal = self.hLocal.duplicate()
         self.cumEDLocal.set(0.0)
-        self.bSlope = self.hLocal.duplicate()
-        self.bSlope.set(0.0)
+
+        self.shedID = self.hGlobal.duplicate()
+        self.shedIDLocal = self.hLocal.duplicate()
+
+        self.Es = self.hGlobal.duplicate()
+        self.Es.set(0.0)
+        self.Eb = self.hGlobal.duplicate()
+        self.Eb.set(0.0)
+        self.EsLocal = self.hLocal.duplicate()
+        self.EsLocal.set(0.0)
+        self.EbLocal = self.hLocal.duplicate()
+        self.EbLocal.set(0.0)
+
+        self._getSoilThickness()
 
         if MPIrank == 0 and self.verbose:
             print('Finite volume mesh declaration (%0.02f seconds)'% (clock() - t0))
@@ -148,8 +202,6 @@ class UnstMesh(object):
         Args:
             coords: mesh coordinates
         """
-
-        from scipy.spatial import cKDTree as _cKDTree
 
         self.lcoords = self.dm.getCoordinatesLocal().array.reshape(-1,3)
         self.npoints = self.lcoords.shape[0]
@@ -243,6 +295,28 @@ class UnstMesh(object):
 
         return
 
+    def _getSoilThickness(self):
+        """
+        Specify initial soil thickness
+        """
+
+        self.Hsoil = self.hGlobal.duplicate()
+        self.HsoilLocal = self.hLocal.duplicate()
+
+        if pd.isnull(self.soildata['sUni'][0]):
+            mdata = meshio.read(self.soildata.iloc[0,1])
+            soilH = mdata.point_data[self.soildata.iloc[0,2]]
+            del mdata
+        else:
+            soilH = np.full(len(self.elev),self.soildata.iloc[0,0])
+
+        self.HsoilLocal.setArray(soilH[self.natural2local])
+        self.dm.localToGlobal(self.HsoilLocal, self.Hsoil, 1)
+        self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
+        del soilH
+
+        return
+
     def _get_boundary(self, label="boundary"):
         """
         Find the nodes on the boundary from the DM
@@ -271,6 +345,34 @@ class UnstMesh(object):
 
         return bmask, indices
 
+    def updateBoundaries(self):
+        """
+        Apply boundary forcing for slope and flat conditions.
+        """
+
+        t0 = clock()
+        if self.tNow > self.tStart :
+
+            hArray = self.hLocal.getArray().copy()
+            edArray = self.cumEDLocal.getArray().copy()
+
+            if self.boundCond == 'slope' :
+                bElev, bDep = slpBounds(hArray, edArray, self.idGBounds, self.gbds)
+            elif self.boundCond == 'flat' :
+                bElev, bDep = flatBounds(hArray, edArray, self.idGBounds, self.gbds)
+            else:
+                bElev = hArray.copy()
+                bDep = edArray.copy()
+
+            self.hLocal.setArray(bElev)
+            self.cumEDLocal.setArray(bDep)
+            del bElev, hArray, bDep, edArray
+            self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+            self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+
+    	if MPIrank == 0 and self.verbose:
+            print('Update Boundaries (%0.02f seconds)'% (clock() - t0))
+
     def applyForces(self):
         """
         Find the different values for climatic and tectonic forces that will be applied to the
@@ -284,28 +386,6 @@ class UnstMesh(object):
         self._updateRain()
         # Tectonic
         self._updateTectonic()
-
-        # Apply boundary forcing for slope and flat conditions
-        if self.boundCond == 'slope' :
-            if self.tNow == self.tStart :
-                hArray = self.hLocal.getArray()
-                bslp = meanSlope(hArray, self.idGBounds, self.gbounds)
-                self.bSlope.setArray(bslp)
-                del bslp, hArray
-            else:
-                hArray = self.hLocal.getArray()
-                bSlpe = self.bSlope.getArray()
-                bElev = slpBounds(hArray, bSlpe, self.idGBounds, self.gbounds)
-                self.hLocal.setArray(bElev)
-                del bElev, hArray, bSlpe
-                self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
-
-        if self.tNow > self.tStart and self.boundCond == 'flat' :
-            hArray = self.hLocal.getArray()
-            bElev = flatBounds(hArray, self.idGBounds, self.gbounds)
-            self.hLocal.setArray(bcelev)
-            del bElev, hArray
-            self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
 
     	if MPIrank == 0 and self.verbose:
             print('Update External Forces (%0.02f seconds)'% (clock() - t0))
@@ -321,7 +401,6 @@ class UnstMesh(object):
             self.rainFlag = False
             return
 
-        t0 = clock()
         nb = self.rainNb
         if nb < len(self.raindata)-1 :
             if self.raindata.iloc[nb+1,0] <= self.tNow+self.dt :
@@ -332,7 +411,7 @@ class UnstMesh(object):
                 nb = 0
 
             self.rainNb = nb
-            if np.isnan(self.raindata.iloc[nb,1]):
+            if pd.isnull(self.raindata['rUni'][nb]):
                 mdata = meshio.read(self.raindata.iloc[nb,2])
                 rainArea = mdata.point_data[self.raindata.iloc[nb,3]]
                 del mdata
@@ -346,7 +425,7 @@ class UnstMesh(object):
                 self.rainFlag = False
 
         localZ = self.hLocal.getArray()
-        seaID = np.where(localZ<self.sealevel)[0]
+        seaID = localZ<self.sealevel
         rainArea = self.rainArea.copy()
         rainArea[seaID] = 0.
         rainArea[self.idGBounds] = 0.
@@ -367,7 +446,6 @@ class UnstMesh(object):
             self.tectonic = None
             return
 
-        t0 = clock()
         nb = self.tecNb
         if nb < len(self.tecdata)-1 :
             if self.tecdata.iloc[nb+1,0] <= self.tNow+self.dt :
@@ -378,11 +456,61 @@ class UnstMesh(object):
                 nb = 0
 
             self.tecNb = nb
-            if np.isnan(self.tecdata.iloc[nb,1]):
-                mdata = meshio.read(self.tecdata.iloc[nb,2])
-                tectonic = mdata.ptdata[self.tecdata.iloc[nb,3]]
-                self.tectonic = tectonic[self.natural2local]*self.dt
-                # del mdata,tectonic
+            if pd.isnull(self.tecdata['tUni'][nb]):
+
+                # Horizontal displacements along X-axis
+                flagAdvection = False
+                if not pd.isnull(self.tecdata['tMapX'][nb]):
+                    mdata = meshio.read(self.tecdata.iloc[nb,2])
+                    tectonicX = mdata.point_data[self.tecdata.iloc[nb,5]]
+                    flagAdvection = True
+                    del mdata
+                else:
+                    tectonicX = np.zeros(self.gpoints)
+
+                # Horizontal displacements along Y-axis
+                if not pd.isnull(self.tecdata['tMapY'][nb]):
+                    mdata = meshio.read(self.tecdata.iloc[nb,3])
+                    tectonicY = mdata.point_data[self.tecdata.iloc[nb,6]]
+                    flagAdvection = True
+                    del mdata
+                else:
+                    tectonicY = np.zeros(self.gpoints)
+
+                # Vertical displacements
+                if self.sphere == 0:
+                    if not pd.isnull(self.tecdata['tMapZ'][nb]):
+                        mdata = meshio.read(self.tecdata.iloc[nb,4])
+                        tectonic = mdata.point_data[self.tecdata.iloc[nb,7]]
+                        self.tectonic = tectonic[self.natural2local]*self.dt
+                        del mdata,tectonic
+                    else:
+                        tectonic = np.zeros(len(self.elev))
+                        self.tectonic = tectonic[self.natural2local]
+                        del tectonic
+                else:
+                    if not pd.isnull(self.tecdata['tMapZ'][nb]):
+                        mdata = meshio.read(self.tecdata.iloc[nb,4])
+                        tectonicZ = mdata.point_data[self.tecdata.iloc[nb,7]]
+                    else:
+                        tectonicZ = np.zeros(self.gpoints)
+
+                    tectonic = np.zeros(len(self.elev))
+                    self.tectonic = tectonic[self.natural2local]
+                    del tectonic
+
+                if flagAdvection:
+                    if nb < len(self.tecdata.index)-1:
+                        timer = self.tecdata.iloc[nb+1,0]-self.tecdata.iloc[nb,0]
+                    else:
+                        timer = self.tEnd-self.tecdata.iloc[nb,0]
+
+                    if self.sphere == 0:
+                        self._meshAdvector(tectonicX, tectonicY, timer)
+                        del tectonicX, tectonicY
+                    else:
+                        self._meshAdvectorSphere(tectonicX, tectonicY, tectonicZ, timer)
+                        del tectonicX, tectonicY, tectonicZ
             else:
                 tectonic = np.full(len(self.elev),self.tecdata.iloc[self.tecNb,1])
                 self.tectonic = tectonic[self.natural2local]*self.dt
@@ -398,6 +526,150 @@ class UnstMesh(object):
             self.hLocal.setArray(localZ.reshape(-1))
             self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
             self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+
+        return
+
+    def _meshAdvector(self, tectonicX, tectonicY, timer):
+        """
+        Advect the mesh horizontally and interpolate mesh information
+        """
+
+        # Move horizontally coordinates
+        XYZ = np.zeros((self.gpoints,3))
+        XYZ[:,0] = self.gcoords[:,0] + tectonicX*timer
+        XYZ[:,1] = self.gcoords[:,1] + tectonicY*timer
+
+        # Get mesh variables to interpolate
+        # Elevation
+        elev = np.zeros(self.gpoints)
+        elev.fill(-1.e8)
+        elev[self.natural2local] = self.hLocal.getArray().copy()
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, elev, op=MPI.MAX)
+        interpolator = CloughTocher2DInterpolator(XYZ[:,:2],elev)
+        nelev = interpolator(self.lcoords[:,:2])
+        id_NaNs = np.isnan(nelev)
+        nelev[id_NaNs] = 0.
+
+        # Erosion/deposition
+        erodep = np.zeros(self.gpoints)
+        erodep.fill(-1.e8)
+        erodep[self.natural2local] = self.cumEDLocal.getArray().copy()
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, erodep, op=MPI.MAX)
+        interpolator = CloughTocher2DInterpolator(XYZ[:,:2],erodep)
+        nerodep = interpolator(self.lcoords[:,:2])
+        nerodep[id_NaNs] = 0.
+
+        # Soil thickness
+        if self.Ksed > 0.:
+            soil = np.zeros(self.gpoints)
+            soil.fill(-1.e8)
+            soil[self.natural2local] = self.HsoilLocal.getArray().copy()
+            MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, soil, op=MPI.MAX)
+            interpolator = CloughTocher2DInterpolator(XYZ[:,:2],soil)
+            nsoil = interpolator(self.lcoords[:,:2])
+            nsoil[id_NaNs] = 0.
+
+        # Build kd-tree
+        tree = _cKDTree(XYZ)
+        distances, indices = tree.query(self.lcoords[id_NaNs,:], k=10)
+
+        # Inverse weighting distance...
+        weights = 1.0 / distances**2
+        onIDs = np.where(distances[:,0] == 0)[0]
+
+        nelev[id_NaNs] = np.sum(weights*elev[indices],axis=1)/np.sum(weights, axis=1)
+
+        self.hLocal.setArray(nelev)
+        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+        del elev, nelev
+
+        self.cumEDLocal.setArray(nerodep)
+        self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+        self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
+        del erodep, nerodep
+
+        if self.Ksed > 0.:
+            self.HsoilLocal.setArray(nsoil)
+            self.dm.localToGlobal(self.HsoilLocal, self.Hsoil, 1)
+            self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
+            del soil, nsoil
+
+        del XYZ, tree, weights, distances, indices
+
+        return
+
+    def _meshAdvectorSphere(self, tectonicX, tectonicY, tectonicZ, timer):
+        """
+        Advect spherical mesh horizontally and interpolate mesh information
+        """
+
+        # Move coordinates
+        XYZ = np.zeros((self.gpoints,3))
+        XYZ[:,0] = tectonicX #self.gcoords[:,0] + tectonicX*timer
+        XYZ[:,1] = tectonicY #self.gcoords[:,1] + tectonicY*timer
+        XYZ[:,2] = tectonicZ #self.gcoords[:,2] + tectonicZ*timer
+        XYZ = XYZ[1:]
+
+        # Get mesh variables to interpolate
+        # Elevation
+        elev = np.zeros(self.gpoints)
+        elev.fill(-1.e8)
+        elev[self.natural2local] = self.hLocal.getArray().copy()
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, elev, op=MPI.MAX)
+        elev = elev[1:]
+
+        # Erosion/deposition
+        erodep = np.zeros(self.gpoints)
+        erodep.fill(-1.e8)
+        erodep[self.natural2local] = self.cumEDLocal.getArray().copy()
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, erodep, op=MPI.MAX)
+        erodep = erodep[1:]
+
+        # Soil thickness
+        if self.Ksed > 0.:
+            soil = np.zeros(self.gpoints)
+            soil.fill(-1.e8)
+            soil[self.natural2local] = self.HsoilLocal.getArray().copy()
+            MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, soil, op=MPI.MAX)
+            soil = soil[1:]
+
+        # Build kd-tree
+        tree = _cKDTree(XYZ)
+        distances, indices = tree.query(self.lcoords, k=10)
+
+        # Inverse weighting distance...
+        weights = 1.0 / distances**2
+        onIDs = np.where(distances[:,0] == 0)[0]
+
+        nelev = np.sum(weights*elev[indices],axis=1)/np.sum(weights, axis=1)
+        nerodep = np.sum(weights*erodep[indices],axis=1)/np.sum(weights, axis=1)
+        if self.Ksed > 0.:
+            nsoil = np.sum(weights*soil[indices],axis=1)/np.sum(weights, axis=1)
+
+        if len(onIDs)>0:
+            nelev[onIDs] = elev[indices[onIDs,0]]
+            nerodep[onIDs] = erodep[indices[onIDs,0]]
+            if self.Ksed > 0.:
+                nsoil[onIDs] = soil[indices[onIDs,0]]
+
+        self.hLocal.setArray(nelev)
+        self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
+        self.dm.globalToLocal(self.hGlobal, self.hLocal, 1)
+        del elev, nelev
+
+        self.cumEDLocal.setArray(nerodep)
+        self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
+        self.dm.globalToLocal(self.cumED, self.cumEDLocal, 1)
+        del erodep, nerodep
+
+        if self.Ksed > 0.:
+            self.HsoilLocal.setArray(nsoil)
+            self.dm.localToGlobal(self.HsoilLocal, self.Hsoil, 1)
+            self.dm.globalToLocal(self.Hsoil, self.HsoilLocal, 1)
+            del soil, nsoil
+
+        del XYZ, tree, weights, distances, indices
 
         return
 
@@ -441,36 +713,51 @@ class UnstMesh(object):
         self.bG.destroy()
         self.hOld.destroy()
         self.hOldLocal.destroy()
+
+        self.shedID.destroy()
+        self.shedIDLocal.destroy()
         self.cumED.destroy()
         self.cumEDLocal.destroy()
-        self.bSlope.destroy()
         self.drainArea.destroy()
         self.drainAreaLocal.destroy()
+
         self.vSed.destroy()
         self.vSedLocal.destroy()
         self.stepED.destroy()
+        self.stepEDL.destroy()
         self.areaGlobal.destroy()
         self.diffDep.destroy()
         self.diffDepLocal.destroy()
         self.hLocal.destroy()
         self.hGlobal.destroy()
-        self.pitLocal.destroy()
-        self.pitGlobal.destroy()
         self.fillGlobal.destroy()
         self.fillLocal.destroy()
-        self.watershedGlobal.destroy()
-        self.watershedLocal.destroy()
+
+        self.Es.destroy()
+        self.Eb.destroy()
+        self.EsLocal.destroy()
+        self.EbLocal.destroy()
+        self.Hsoil.destroy()
+        self.HsoilLocal.destroy()
+
         self.iMat.destroy()
         self.lgmap_col.destroy()
         self.lgmap_row.destroy()
         if self.Cd > 0.:
             self.Diff.destroy()
         del self.lcoords
-        self.hG0.destroy()
+
         self.vLoc.destroy()
         self.vecG.destroy()
+        self.FAL.destroy()
+        self.FAG.destroy()
         self.vecL.destroy()
+        self.seaG.destroy()
+        self.seaL.destroy()
+        self.tmpG.destroy()
+        self.tmpL.destroy()
         self.vGlob.destroy()
+        self.sedLoadLocal.destroy()
         self.dm.destroy()
 
     	if MPIrank == 0 and self.verbose:

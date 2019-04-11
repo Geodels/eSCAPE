@@ -1,3 +1,4 @@
+
 !    -*- f90 -*-
 ! Note: the context of this file is case sensitive.
 
@@ -7,69 +8,6 @@ python module _fortran ! in
   #include "fortran/functionsmodule.h"
   '''
   interface  ! in :_fortran
-
-      subroutine pitVolume(deplocal,pitid,pitnb,pitvol,notpitvol,m)
-
-          real(kind=8) dimension(m),intent(in) :: deplocal
-          integer dimension(m),intent(in),depend(m) :: pitid
-          integer intent(in) :: pitnb
-          real(kind=8) dimension(pitnb),intent(out),depend(pitnb) :: pitvol
-          real(kind=8) dimension(m),intent(out),depend(m) :: notpitvol
-          integer, optional,check(len(deplocal)>=m),depend(deplocal) :: m=len(deplocal)
-
-      end subroutine pitVolume
-
-      subroutine pitHeight(elev,fillz,pitid,pitvol,pitsedvol,newz,remain,totnodes,m,nn,nb)
-
-          real(kind=8) dimension(m),intent(in) :: elev
-          real(kind=8) dimension(m),intent(in),depend(m) :: fillz
-          integer dimension(m),intent(in),depend(m) :: pitid
-          real(kind=8) dimension(nn),intent(in) :: pitvol
-          real(kind=8) dimension(nb),intent(in) :: pitsedvol
-          real(kind=8) dimension(m),intent(out),depend(m) :: newz
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: remain
-          integer dimension(nb),intent(out),depend(nb) :: totnodes
-          integer, optional,check(len(elev)>=m),depend(elev) :: m=len(elev)
-          integer, optional,check(len(pitvol)>=nn),depend(pitvol) :: nn=len(pitvol)
-          integer, optional,check(len(pitsedvol)>=nb),depend(pitsedvol) :: nb=len(pitsedvol)
-
-      end subroutine pitHeight
-
-      subroutine addExcess(excess,pitid,addvol,m,n)
-
-          real(kind=8) dimension(n),intent(in) :: excess
-          integer dimension(m),intent(in) :: pitid
-          real(kind=8) dimension(m),intent(out),depend(m) :: addvol
-          integer, optional,check(len(excess)>=n),depend(excess) :: n=len(excess)
-          integer, optional,check(len(pitid)>=m),depend(pitid) :: m=len(pitid)
-
-      end subroutine addExcess
-
-      subroutine spillPoints(nb,remainsed,pitdata,spillpts,n,m)
-
-          integer :: nb
-          real(kind=8) dimension(n),intent(in) :: remainsed
-          real(kind=8) dimension(m,5),intent(in) :: pitdata
-          real(kind=8) dimension(nb,3),intent(out),depend(nb) :: spillpts
-          integer, optional,check(len(remainsed)>=n),depend(remainsed) :: n=len(remainsed)
-          integer, optional,check(shape(pitdata,0)==m),depend(pitdata) :: m=shape(pitdata,0)
-
-      end subroutine spillPoints
-
-      subroutine fillDepression(dem,fillp,pitid,watershed,graph,nv,elev,depressionid,m,nb)
-
-          real(kind=8) dimension(m),intent(in) :: dem
-          real(kind=8) dimension(m),intent(in),depend(m) :: fillp
-          integer dimension(m),intent(in),depend(m) :: pitid
-          integer dimension(m),intent(in),depend(m) :: watershed
-          real(kind=8) dimension(nb),intent(in) :: graph
-          integer intent(in) :: nv
-          real(kind=8) dimension(m),intent(out),depend(m) :: elev
-          integer dimension(m),intent(out),depend(m) :: depressionid
-          integer, optional,check(len(dem)>=m),depend(dem) :: m=len(dem)
-          integer, optional,check(len(graph)>=nb),depend(graph) :: nb=len(graph)
-
-      end subroutine fillDepression
 
       subroutine meanSlope(elev,bid,gbounds,bslp,nb,b)
 
@@ -83,24 +21,27 @@ python module _fortran ! in
 
       end subroutine meanSlope
 
-      subroutine flatBounds(elev,bid,gbounds,be,nb,b)
+      subroutine flatBounds(elev,erodep,bid,gbounds,be,bd,nb,b)
 
           real(kind=8) dimension(nb),intent(in) :: elev
+          real(kind=8) dimension(nb),intent(in) :: erodep
           integer dimension(b),intent(in) :: bid
           integer dimension(nb),intent(in),depend(nb) :: gbounds
           real(kind=8) dimension(nb),intent(out),depend(nb) :: be
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: bd
           integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
           integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
 
       end subroutine flatBounds
 
-      subroutine slpBounds(elev,bslp,bid,gbounds,be,nb,b)
+      subroutine slpBounds(elev,erodep,bid,gbounds,be,bd,nb,b)
 
           real(kind=8) dimension(nb),intent(in) :: elev
-          real(kind=8) dimension(nb),intent(in) :: bslp
+          real(kind=8) dimension(nb),intent(in) :: erodep
           integer dimension(b),intent(in) :: bid
           integer dimension(nb),intent(in),depend(nb) :: gbounds
           real(kind=8) dimension(nb),intent(out),depend(nb) :: be
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: bd
           integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
           integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
 
@@ -114,47 +55,29 @@ python module _fortran ! in
 
       end subroutine setHillslopeCoeff
 
-      subroutine initDiffCoeff(nb,dt,kds,kdm,sc,sm,mindt)
+      subroutine setDiffusionCoeff(kd,limit,elev,elev0,dh,dcoeff,nb)
 
-          integer intent(in) :: nb
-          real(kind=8) intent(in) :: dt
-          real(kind=8) intent(in) :: kds
-          real(kind=8) intent(in) :: kdm
-          real(kind=8) dimension(nb),intent(in) :: area
-          integer dimension(nb),intent(in),depend(nb) :: ngbnb
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: lgth
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: vlgth
-          real(kind=8) dimension(nb,12),intent(out),depend(nb) :: sc
-          real(kind=8) dimension(nb,12),intent(out),depend(nb) :: sm
-          real(kind=8) intent(out) :: mindt
+          real(kind=8) intent(in) :: kd
+          real(kind=8) intent(in) :: limit
+          real(kind=8) dimension(nb),intent(in) :: elev
+          real(kind=8) dimension(nb),intent(in) :: elev0
+          real(kind=8) dimension(nb),intent(in) :: dh
+          real(kind=8) dimension(nb,13),intent(out),depend(nb) :: dcoeff
+          integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
 
-      end subroutine initDiffCoeff
+      end subroutine setDiffusionCoeff
 
-      subroutine getMaxEro(sealvl,inids,elev,elev0,cldi,cmdi,cero,nb)
+      subroutine explicitDiff(kd,limit,elev,elev0,dh,newz,nb)
 
-          real(kind=8) intent(in) :: sealvl
-          integer dimension(nb),intent(in) :: inids
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cldi
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cmdi
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: cero
-          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+          real(kind=8) intent(in) :: kd
+          real(kind=8) intent(in) :: limit
+          real(kind=8) dimension(nb),intent(in) :: elev
+          real(kind=8) dimension(nb),intent(in) :: elev0
+          real(kind=8) dimension(nb),intent(in) :: dh
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: newz
+          integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
 
-      end subroutine getMaxEro
-
-      subroutine getDiffElev(sealvl,inids,elev,cero,cldi,cmdi,dh,nb)
-
-          real(kind=8) intent(in) :: sealvl
-          integer dimension(nb),intent(in) :: inids
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: cero
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cldi
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: cmdi
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: dh
-          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
-
-      end subroutine getDiffElev
+      end subroutine explicitDiff
 
       subroutine distributeHeight(inids,sl,elev,elev0,sed,nelev,nsed,nb)
 
@@ -181,6 +104,46 @@ python module _fortran ! in
 
       end subroutine distributeVolume
 
+      subroutine diffusionDT(dm,hlocal,hl0,bounds,iters,itflx,inids,sflux,skd,okd,sl,ierr,nb)
+
+        integer(kind=HANDLE_KIND), intent(in)  :: dm
+        integer(kind=HANDLE_KIND), intent(in) :: hl0
+        integer(kind=HANDLE_KIND), intent(inout)  :: hlocal
+        integer dimension(nb),intent(in) :: inids
+        integer dimension(nb),intent(in),depend(nb) :: bounds
+        integer intent(in) :: iters
+        integer intent(in) :: itflx
+        real(kind=8) dimension(nb,12),intent(in),depend(nb) :: skd
+        real(kind=8) dimension(nb,12),intent(in),depend(nb) :: okd
+        real(kind=8) dimension(nb),intent(in),depend(nb) :: sflux
+        real(kind=8),intent(in) :: sl
+        integer, intent(out) ::   ierr
+        integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine diffusionDT
+
+      subroutine minHeight(inids,elev,hmin,nb)
+
+          integer dimension(nb),intent(in) :: inids
+          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+          real(kind=8) dimension(nb),intent(out),depend(nb) :: hmin
+          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+
+      end subroutine minHeight
+
+      subroutine pitData(rank,pnode,inids,natural,tmp3,nb,nb1,nb2)
+
+          integer ,intent(in) :: rank
+          integer dimension(nb),intent(in) :: pnode
+          integer dimension(nb1),intent(in) :: inids
+          integer dimension(nb2),intent(in) :: natural
+          integer dimension(2*nb),intent(out),depend(nb) :: tmp3
+          integer, optional,check(len(pnode)>=nb),depend(pnode) :: nb=len(pnode)
+          integer, optional,check(len(inids)>=nb1),depend(inids) :: nb1=len(inids)
+          integer, optional,check(len(inids)>=nb2),depend(natural) :: nb2=len(natural)
+
+      end subroutine pitData
+
       subroutine MFDreceivers(nrcv,inids,elev,rcv,slope,dist,wgt,nb)
 
           integer intent(in) :: nrcv
@@ -201,7 +164,7 @@ python module _fortran ! in
           integer dimension(n,3),intent(in),depend(n) :: cells_edges
           integer dimension(m,2),intent(in) :: edges_nodes
           real(kind=8) dimension(nb),intent(in),depend(nb) :: area
-          real(kind=8) dimension(n,3),intent(in),depend(n) :: circumcenter
+          real(kind=8) dimension(3,n),intent(in),depend(n) :: circumcenter
           integer dimension(nb),intent(out),depend(nb) :: ngbnb
           integer dimension(nb,12),intent(out),depend(nb) :: ngbid
           real(kind=8) dimension(nb,12),intent(out),depend(nb) :: edgelgt
@@ -211,6 +174,18 @@ python module _fortran ! in
           integer, optional,check(shape(edges_nodes,0)==m),depend(edges_nodes) :: m=shape(edges_nodes,0)
 
       end subroutine defineTIN
+
+      subroutine defineGTIN(nb,cells_nodes,edges_nodes,ngbnb,ngbid,n,m)
+
+          integer ,intent(in) :: nb
+          integer dimension(n,3),intent(in) :: cells_nodes
+          integer dimension(m,2),intent(in) :: edges_nodes
+          integer dimension(nb),intent(out),depend(nb) :: ngbnb
+          integer dimension(nb,12),intent(out),depend(nb) :: ngbid
+          integer, optional,check(shape(cells_nodes,0)==n),depend(cells_nodes) :: n=shape(cells_nodes,0)
+          integer, optional,check(shape(edges_nodes,0)==m),depend(edges_nodes) :: m=shape(edges_nodes,0)
+
+      end subroutine defineGTIN
 
   end interface
 

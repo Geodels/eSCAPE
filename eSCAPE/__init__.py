@@ -21,7 +21,7 @@
 
 .. list-table::
     :header-rows: 1
-    :widths: 10 60 
+    :widths: 10 60
     :stub-columns: 1
     :align: left
 
@@ -108,8 +108,8 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
                 self.log.begin()
 
             self.modelRunTime = clock()
-            t_init = clock()
             self.verbose = verbose
+
             _ReadYaml.__init__(self, filename)
 
             _UnstMesh.__init__(self, self.meshFile, *args, **kwargs)
@@ -125,7 +125,7 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
             # Get external forces
             _UnstMesh.applyForces(self)
             if MPIrank == 0:
-                print('--- Initialisation Phase (%0.02f seconds)'% (clock() - t_init))
+                print('--- Initialisation Phase (%0.02f seconds)'% (clock() - self.modelRunTime))
 
             return
 
@@ -145,32 +145,51 @@ def LandscapeEvolutionModel(filename, *args, **kwargs):
                 tstep = clock()
 
                 # Compute Flow Accumulation
-                _SPMesh.FlowAccumulation(self)
+                _SPMesh.FlowAccumulation(self, filled=False)
 
                 # Output time step for first step
                 if self.tNow == self.tStart:
                     _WriteMesh.outputMesh(self, remesh=False)
                     self.saveTime += self.tout
 
-                # Compute Stream Power Law
-                _SPMesh.StreamPowerLaw(self)
+                # Compute Erosion using Stream Power Law
+                _SPMesh.cptErosion(self)
 
-                # Find depressions chracteristics (volume and spill-over nodes)
-                _UnstPit.depressionDefinition(self)
+                # Compute Deposition and Sediment Flux
+                _SPMesh.cptSedFlux(self)
+
+                # Find depressions and fill them
+                _UnstPit.getDepressions(self)
+
+                # Compute Deposition in Depressions
+                _SPMesh.depositDepressions(self)
+
+                # Compute Flow Accumulation on Filled Elevation
+                if self.excess:
+                    # Transport Sediment Downstream
+                    _SPMesh.downSediment(self)
+
+                # Marine deposition
+                _SPMesh.marineDeposition(self)
 
                 # Apply diffusion to deposited sediments
-                _SPMesh.SedimentDiffusion(self)
+                if self.frac_fine < 1.:
+                    _SPMesh.SedimentDiffusion(self)
 
                 # Compute Hillslope Diffusion Law
                 _SPMesh.HillSlope(self)
 
-                # Update Tectonic, Sea-level & Climatic conditions
-                _UnstMesh.applyForces(self)
+                # Update Boundaries
+                _UnstMesh.updateBoundaries(self)
 
                 # Output time step
                 if self.tNow >= self.saveTime:
                     _WriteMesh.outputMesh(self, remesh=False)
                     self.saveTime += self.tout
+
+                # Update Tectonic, Sea-level & Climatic conditions
+                if self.tNow<self.tEnd:
+                    _UnstMesh.applyForces(self)
 
                 # Advance time
                 self.tNow += self.dt

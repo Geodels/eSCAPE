@@ -68,7 +68,10 @@ class ReadYaml(object):
         self._readDomain()
         self._readTime()
         self._readSealevel()
-        self._readSPL()
+        self._readSoil()
+        self._readSPsediment()
+        self._readSPbedrock()
+        self._readSPdeposition()
         self._readHillslope()
         self._readOut()
         self._readRain()
@@ -105,6 +108,11 @@ class ReadYaml(object):
             self.flowDir = domainDict['flowdir']
         except KeyError as exc:
             self.flowDir = 1
+
+        try:
+            self.sphere = domainDict['sphere']
+        except KeyError as exc:
+            self.sphere = 0
 
         try:
             meshFile = domainDict['filename']
@@ -184,6 +192,7 @@ class ReadYaml(object):
 
         seafile = None
         seafunction = None
+        sealevel = 0.
         self.seafunction = None
         try:
             seaDict = self.input['sea']
@@ -223,6 +232,7 @@ class ReadYaml(object):
                 print("Unable to open file: ",seafile)
                 raise IOError('The sealevel file is not found...')
 
+            seadata[1] += sealevel
             if seadata[0].min() > self.tStart:
                 tmpS = []
                 tmpS.insert(0, {0: self.tStart, 1: seadata[1].iloc[0]})
@@ -239,34 +249,89 @@ class ReadYaml(object):
 
         return
 
-    def _readSPL(self):
+    def _readSPbedrock(self):
         """
-        Read stream power law parameters.
+        Read surface processes bedrock parameters.
         """
 
         try:
-            splDict = self.input['spl']
+            spbDict = self.input['sp_br']
+            self.mbr = 0.5
+            self.nbr = 1.0
             try:
-                self.m = splDict['m']
+                self.Kbr = spbDict['Kbr']
             except KeyError as exc:
-                self.m = 0.5
-                # print("When using the Stream Power Law definition of coefficient m is required.")
-                # raise ValueError('Stream Power Law: m coefficient not found.')
+                print("When using the Surface Process Model definition of coefficient Kbr is required.")
+                raise ValueError('Surface Process Model: Kbr coefficient not found.')
             try:
-                self.n = splDict['n']
+                self.crit_br = spbDict['sp_crit_br']
             except KeyError as exc:
-                self.n = 1.0
-                # print("When using the Stream Power Law definition of coefficient n is required.")
-                # raise ValueError('Stream Power Law: n coefficient not found.')
-            try:
-                self.Ke = splDict['Ke']
-            except KeyError as exc:
-                print("When using the Stream Power Law definition of coefficient Ke is required.")
-                raise ValueError('Stream Power Law: Ke coefficient not found.')
+                self.crit_br = 0.0
         except KeyError as exc:
-            self.m = 0.5
-            self.n = 1.0
-            self.Ke = 0.
+            self.mbr = 0.5
+            self.nbr = 1.0
+            self.Kbr = 1.e-12
+            self.crit_br = 0.
+
+        return
+
+    def _readSPsediment(self):
+        """
+        Read surface processes sediment parameters.
+        """
+
+        try:
+            spsDict = self.input['sp_sed']
+            self.msed = 0.5
+            self.nsed = 1.0
+            try:
+                self.Ksed = spsDict['Ksed']
+            except KeyError as exc:
+                print("When using the Surface Process Model definition of coefficient Ksed is required.")
+                raise ValueError('Surface Process Model: Ksed coefficient not found.')
+            try:
+                self.crit_sed = spsDict['sp_crit_sed']
+            except KeyError as exc:
+                self.crit_sed = 0.0
+        except KeyError as exc:
+            self.msed = 0.5
+            self.nsed = 1.0
+            self.Ksed = 0.
+            self.crit_sed = 0.0
+
+        return
+
+    def _readSPdeposition(self):
+        """
+        Read surface processes deposition parameters.
+        """
+
+        try:
+            spdDict = self.input['sp_dep']
+            try:
+                self.vland = spdDict['vsL']
+            except KeyError as exc:
+                self.vland = 0.0
+            try:
+                self.frac_fine = spdDict['Ff']
+            except KeyError as exc:
+                self.frac_fine = 0.0
+            try:
+                self.phi = spdDict['phi']
+            except KeyError as exc:
+                self.phi = 0.0
+            try:
+                self.Hstar = spdDict['Hstar']
+                if self.Hstar <= 0.:
+                    print("Hstar needs to be a strictly positive constant!")
+                    raise ValueError('Hstar needs to be a strictly positive constant!')
+            except KeyError as exc:
+                self.Hstar = 1.0
+        except KeyError as exc:
+            self.vland = 0.0
+            self.frac_fine = 0.0
+            self.phi = 0.0
+            self.Hstar = 1.0
 
         return
 
@@ -283,22 +348,12 @@ class ReadYaml(object):
                 print("When declaring diffusion processes, the coefficient hillslopeK is required.")
                 raise ValueError('Hillslope: Cd coefficient not found.')
             try:
-                self.streamCd = hillDict['streamK']
+                self.sedimentK = hillDict['sedimentK']
             except KeyError as exc:
-                self.streamCd = 100.
-            try:
-                self.oceanCd = hillDict['oceanK']
-            except KeyError as exc:
-                self.oceanCd = 50.
-            try:
-                self.maxIters = hillDict['maxIT']
-            except KeyError as exc:
-                self.maxIters = 500
+                self.sedimentK = 10.
         except KeyError as exc:
             self.Cd = 0.
-            self.streamCd = 100.
-            self.oceanCd = 50.
-            self.maxIters = 500
+            self.sedimentK = 10.
 
         return
 
@@ -320,6 +375,64 @@ class ReadYaml(object):
         except KeyError as exc:
             self.outputDir = 'output'
             self.makedir = True
+
+        return
+
+    def _readSoil(self):
+        """
+        Parse soil dataset.
+        """
+        try:
+            soilDict = self.input['soil']
+            sUniform = None
+            sMap = None
+            try:
+                sUniform = soilDict['uniform']
+            except:
+                pass
+            try:
+                sMap = soilDict['map']
+            except:
+                pass
+
+            if sMap is not None:
+                if self.meshFile[0] != sMap[0]:
+                    try:
+                        with open(sMap[0]) as soilfile:
+                            pass
+                    except IOError as exc:
+                        print("Unable to open soil file: ",sMap[0])
+                        raise IOError('The soil file {} is not found.'.format(sMap[0]))
+
+                    sdata = meshio.read(sMap[0])
+                    soilSet = sdata.point_data
+                else:
+                    soilSet = self.mdata.point_data
+                try:
+                    soilKey = soilSet[sMap[1]]
+                except KeyError as exc:
+                    print("Field name {} is missing from soil file {}".format(sMap[1],sMap[0]))
+                    print("The following fields are available: ",soilSet.keys())
+                    print("Check your soil file fields definition...")
+                    raise KeyError('Field name for soil is not defined correctly or does not exist!')
+
+
+            if sMap is None and sUniform is None:
+                print("For soil definition a soil thickness value (uniform) or a soil grid (map) is required.")
+                raise ValueError('Soil has no value (uniform) or map (map).')
+
+            tmpSoil = []
+            if sMap is None:
+                tmpSoil.insert(0, {'sUni': sUniform, 'sMap': None, 'sKey': None})
+            else:
+                tmpSoil.insert(0, {'sUni': None, 'sMap': sMap[0], 'sKey': sMap[1]})
+            self.soildata = pd.DataFrame(tmpSoil, columns=['sUni', 'sMap', 'sKey'])
+
+        except KeyError as exc:
+            tmpSoil = []
+            tmpSoil.insert(0, {'sUni': 0., 'sMap': None, 'sKey': None})
+            self.soildata = pd.DataFrame(tmpSoil, columns=['sUni', 'sMap', 'sKey'])
+            pass
 
         return
 
@@ -359,7 +472,6 @@ class ReadYaml(object):
 
                         mdata = meshio.read(rMap[0])
                         rainSet = mdata.point_data
-                        # del mdata
                     else:
                         rainSet = self.mdata.point_data
                     try:
@@ -410,8 +522,12 @@ class ReadYaml(object):
             tecSort = sorted(tecDict, key=itemgetter('start'))
             for k in range(len(tecSort)):
                 tecStart = None
-                tMap = None
+                tMapX = None
+                tMapY = None
+                tMapZ = None
                 tUniform = None
+                tEnd = None
+                tStep = None
                 try:
                     tecStart = tecSort[k]['start']
                 except:
@@ -422,54 +538,132 @@ class ReadYaml(object):
                 except:
                     pass
                 try:
-                    tMap = tecSort[k]['map']
+                    tMapX = tecSort[k]['mapX']
                 except:
                     pass
-                    # print("For each tectonic event a map is required.")
-                    # raise ValueError('Tectonic event {} has no parameter map'.format(k))
+                try:
+                    tMapY = tecSort[k]['mapY']
+                except:
+                    pass
+                try:
+                    tMapZ = tecSort[k]['mapZ']
+                except:
+                    pass
+                try:
+                    tStep = tecSort[k]['step']
+                except:
+                    pass
+                try:
+                    tEnd = tecSort[k]['end']
+                except:
+                    pass
 
-                if tMap is not None:
-                    if self.meshFile[0] != tMap[0]:
+                if tMapX is not None:
+                    if self.meshFile[0] != tMapX[0]:
                         try:
-                            with open(tMap[0]) as tecfile:
+                            with open(tMapX[0]) as tecfile:
                                 pass
                         except IOError as exc:
-                            print("Unable to open tectonic file: ",tMap[0])
-                            raise IOError('The tectonic file {} is not found for climatic event {}.'.format(tMap[0],k))
+                            print("Unable to open tectonic file: ",tMapX[0])
+                            raise IOError('The tectonic file {} is not found for climatic event {}.'.format(tMapX[0],k))
 
-                        mdata = meshio.read(tMap[0])
+                        mdata = meshio.read(tMapX[0])
                         tecSet = mdata.point_data
                     else:
                         tecSet = self.mdata.point_data
                     try:
-                        tecKey = tecSet[tMap[1]]
+                        tecKey = tecSet[tMapX[1]]
                     except KeyError as exc:
-                        print("Field name {} is missing from tectonic file {}".format(tMap[1],tMap[0]))
+                        print("Field name {} is missing from tectonic file {}".format(tMapX[1],tMapX[0]))
                         print("The following fields are available: ",tecSet.keys())
                         print("Check your tectonic file fields definition...")
                         raise KeyError('Field name for tectonics is not defined correctly or does not exist!')
 
-                if tMap is None and tUniform is None:
+
+                if tMapY is not None:
+                    if self.meshFile[0] != tMapY[0]:
+                        try:
+                            with open(tMapY[0]) as tecfile:
+                                pass
+                        except IOError as exc:
+                            print("Unable to open tectonic file: ",tMapY[0])
+                            raise IOError('The tectonic file {} is not found for climatic event {}.'.format(tMapY[0],k))
+
+                        mdata = meshio.read(tMapY[0])
+                        tecSet = mdata.point_data
+                    else:
+                        tecSet = self.mdata.point_data
+                    try:
+                        tecKey = tecSet[tMapY[1]]
+                    except KeyError as exc:
+                        print("Field name {} is missing from tectonic file {}".format(tMapY[1],tMapY[0]))
+                        print("The following fields are available: ",tecSet.keys())
+                        print("Check your tectonic file fields definition...")
+                        raise KeyError('Field name for tectonics is not defined correctly or does not exist!')
+
+                if tMapZ is not None:
+                    if self.meshFile[0] != tMapZ[0]:
+                        try:
+                            with open(tMapZ[0]) as tecfile:
+                                pass
+                        except IOError as exc:
+                            print("Unable to open tectonic file: ",tMapZ[0])
+                            raise IOError('The tectonic file {} is not found for climatic event {}.'.format(tMapZ[0],k))
+
+                        mdata = meshio.read(tMapZ[0])
+                        tecSet = mdata.point_data
+                    else:
+                        tecSet = self.mdata.point_data
+                    try:
+                        tecKey = tecSet[tMapZ[1]]
+                    except KeyError as exc:
+                        print("Field name {} is missing from tectonic file {}".format(tMapZ[1],tMapZ[0]))
+                        print("The following fields are available: ",tecSet.keys())
+                        print("Check your tectonic file fields definition...")
+                        raise KeyError('Field name for tectonics is not defined correctly or does not exist!')
+
+
+                if tMapX is None and tMapY is None and tMapZ is None and tUniform is None:
                     print("For each tectonic event a tectonic value (uniform) or a tectonic grid (map) is required.")
                     raise ValueError('Tectonic event {} has no tectonic value (uniform) or a tectonic map (map).'.format(k))
 
                 tmpTec = []
-                if tMap is None:
-                    tmpTec.insert(0, {'start': tecStart, 'tUni': tUniform, 'tMap': None, 'tKey': None})
+                if tUniform is not None:
+                    tmpTec.insert(0, {'start': tecStart, 'tUni': tUniform, 'tMapX': None, 'tMapY': None, 'tMapZ': None,
+                                      'tKeyX': None, 'tKeyY': None, 'tKeyZ': None})
                 else:
-                    tmpTec.insert(0, {'start': tecStart, 'tUni': None, 'tMap': tMap[0], 'tKey': tMap[1]})
+                    if tMapX is None:
+                        tMapX = [None] * 2
+                    if tMapY is None:
+                        tMapY = [None] * 2
+                    if tMapZ is None:
+                        tMapZ = [None] * 2
+                    tmpTec.insert(0, {'start': tecStart, 'tUni': None, 'tMapX': tMapX[0], 'tMapY': tMapY[0], 'tMapZ': tMapZ[0],
+                                      'tKeyX': tMapX[1], 'tKeyY': tMapY[1], 'tKeyZ': tMapZ[1]})
 
                 if k == 0:
-                    tecdata = pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMap', 'tKey'])
+                    tecdata = pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMapX', 'tMapY','tMapZ', 'tKeyX', 'tKeyY', 'tKeyZ'])
                 else:
-                    tecdata = pd.concat([tecdata,pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMap', 'tKey'])],
-                                                       ignore_index=True)
+                    tecdata = pd.concat([tecdata,pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMapX', 'tMapY',
+                                         'tMapZ', 'tKeyX', 'tKeyY', 'tKeyZ'])], ignore_index=True)
+
+                if tStep is not None:
+                    if tEnd is not None:
+                        tectime = tecStart+tStep
+                        while tectime<tEnd:
+                            tmpTec = []
+                            tmpTec.insert(0, {'start': tectime, 'tUni': None, 'tMapX': tMapX[0], 'tMapY': tMapY[0], 'tMapZ': tMapZ[0],
+                                              'tKeyX': tMapX[1], 'tKeyY': tMapY[1], 'tKeyZ': tMapZ[1]})
+                            tecdata = pd.concat([tecdata,pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMapX', 'tMapY','tMapZ',
+                                                'tKeyX', 'tKeyY', 'tKeyZ'])], ignore_index=True)
+                            tectime = tectime+tStep
 
             if tecdata['start'][0] > self.tStart:
                 tmpTec = []
-                tmpTec.insert(0, {'start': self.tStart, 'tUni': 0., 'tMap': None, 'tKey': None})
-                tecdata = pd.concat([pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMap', 'tKey']),tecdata],
-                                                   ignore_index=True)
+                tmpTec.insert(0, {'start': self.tStart, 'tUni': 0., 'tMapX': None, 'tMapY': None, 'tMapZ': None,
+                                  'tKeyX': None, 'tKeyY': None, 'tKeyZ': None})
+                tecdata = pd.concat([pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMapX', 'tMapY','tMapZ',
+                                    'tKeyX', 'tKeyY', 'tKeyZ']),tecdata], ignore_index=True)
             self.tecdata = tecdata
 
         except KeyError as exc:
