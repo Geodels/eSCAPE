@@ -270,7 +270,7 @@ class ReadYaml(object):
         except KeyError as exc:
             self.mbr = 0.5
             self.nbr = 1.0
-            self.Kbr = 0.
+            self.Kbr = 1.e-12
             self.crit_br = 0.
 
         return
@@ -665,7 +665,7 @@ class ReadYaml(object):
                 tecdata = pd.concat([pd.DataFrame(tmpTec, columns=['start', 'tUni', 'tMapX', 'tMapY','tMapZ',
                                     'tKeyX', 'tKeyY', 'tKeyZ']),tecdata], ignore_index=True)
             self.tecdata = tecdata
-            
+
         except KeyError as exc:
             self.tecdata = None
             pass
