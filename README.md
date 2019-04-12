@@ -7,7 +7,7 @@
 
 ## Overview
 
-**eSCAPE** is a parallel TIN-based landscape evolution model, built to simulate topography dynamic at various space and time scales. The model accounts for hillslope processes (soil creep using **linear** diffusion), fluvial incision (**stream power law**), spatially and temporally varying tectonics (vertical displacements) and climatic forces (temporal and spatial precipitation changes and/or sea-level fluctuations).
+**eSCAPE** is a parallel TIN-based landscape evolution model, built to simulate topography dynamic at various space and time scales. The model accounts for hillslope processes (soil creep using **linear** diffusion), fluvial incision (**stream power law**), spatially and temporally varying tectonics (horizontal & vertical displacements) and climatic forces (temporal and spatial precipitation changes and/or sea-level fluctuations).
 
 ## Getting started
 
@@ -23,14 +23,13 @@ The easiest way to get started is with the Docker container
 If you want to install it yourself, you can follow the steps provided in the [wiki](https://github.com/Geodels/eSCAPE/wiki/Installation-on-HPC) page.
 
 <div align="center">
-<img src="https://github.com/Geodels/eSCAPE-hugo/blob/master/static/images/earthdepo1.gif" width="800"/>
+<img src="https://github.com/Geodels/eSCAPE-hugo/blob/master/static/images/earthdepo1.gif" width="600"/>
 </div>
 
 ## The specs...
 
 The model is based on the following approaches:
 * an adaptation of the implicit, parallelizable method for calculating drainage area for both single (D8) and multiple flow direction (Dinf) from [**Richardson & Perron (2014)**](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/2013WR014326),
-* the extension of the parallel priority-flood algorithm from [**Barnes (2016)**](https://arxiv.org/abs/1606.06204) to unstructured mesh,
 * the methods developed in [**pyBadlands**](https://github.com/badlands-model/pyBadlands_serial) ([**Salles et al. (2018)**](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0195557)) for marine sedimentation.
 
 ### Community driven
@@ -96,17 +95,9 @@ This test should take less than 1 minute. An example on how to visualise **eSCAP
 
 The code parallelisation relies on `petsc` and scalability tests are still on-going. Our goal is to be able to run models with more than 10 millions nodes and over several hundreds of CPUs.
 
-The diagram below illustrates the performance of **eSCAPE** on a mesh with 6M+ nodes.
-
-<div align="center">
-<img src="https://github.com/Geodels/eSCAPE-demo/blob/master/images/performance.jpg" width="700"/>
-</div>
-
-Distribution on deposited sediments in both the marine and land regions is dependent of the main rivers positions and is happening on specific locations (river mouths, depressions). As these locations are irregularly positioned on the simulated domain it creates unbalancing issues that arise and potentially decrease overall scalability of the model with increasing number of CPUs.
-
 ## Tutorials
 
-To get some additional info in regards to how to use **eSCAPE** a series of examples and tutorials is provided in the docker container (`escape-docker`) and is also available for  download from the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository.
+To get some additional info in regards to how to use **eSCAPE** a series of examples and tutorials is provided in the docker container (`escape-docker`) and is also available for download from the [eSCAPE-demo](https://github.com/Geodels/eSCAPE-demo) repository.
 
 ## Contributions
 
