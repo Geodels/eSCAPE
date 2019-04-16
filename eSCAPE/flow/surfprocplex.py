@@ -49,8 +49,8 @@ class SPMesh(object):
     def __init__(self, *args, **kwargs):
 
         val = np.zeros(1,dtype=int)
-        X = np.ma.masked_equal(self.FVmesh_edgeLgt,0)
-        val[0] = X.min()
+        X = np.ma.masked_equal(self.FVmesh_edgeLgt,1)
+        val[0] = np.mean(X)
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE, val, op=MPI.MIN)
         minlgth = val[0]
         dt = 0.1*np.divide(np.square(val[0]),2.*self.sedimentK)
