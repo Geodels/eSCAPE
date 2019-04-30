@@ -7,7 +7,7 @@
 
 ## Overview
 
-**eSCAPE** is a parallel TIN-based landscape evolution model, built to simulate topography dynamic at various space and time scales. The model accounts for hillslope processes (soil creep using **linear** diffusion), fluvial incision (**stream power law**), spatially and temporally varying tectonics (horizontal & vertical displacements) and climatic forces (temporal and spatial precipitation changes and/or sea-level fluctuations).
+**eSCAPE** is a parallel TIN-based landscape evolution model, built to simulate topography dynamic at various space and time scales. The model accounts for hillslope processes (soil creep using **linear** diffusion), fluvial incision (**stream power law**), spatially and temporally varying tectonics (horizontal & vertical displacements) and climatic forces (temporal and spatial precipitation changes and/or sea-level fluctuations). 
 
 ## Getting started
 
