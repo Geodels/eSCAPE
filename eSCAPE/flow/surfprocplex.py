@@ -219,7 +219,7 @@ class SPMesh(object):
             self.pitID = np.where(h1<h2)[0]
         del h1, h2
 
-    	if MPIrank == 0 and self.verbose:
+        if MPIrank == 0 and self.verbose:
             print('Flow Direction declaration (%0.02f seconds)'% (clock() - t0))
 
         return

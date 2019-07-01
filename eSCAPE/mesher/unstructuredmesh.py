@@ -370,7 +370,7 @@ class UnstMesh(object):
             self.dm.localToGlobal(self.hLocal, self.hGlobal, 1)
             self.dm.localToGlobal(self.cumEDLocal, self.cumED, 1)
 
-    	if MPIrank == 0 and self.verbose:
+        if MPIrank == 0 and self.verbose:
             print('Update Boundaries (%0.02f seconds)'% (clock() - t0))
 
     def applyForces(self):
@@ -387,7 +387,7 @@ class UnstMesh(object):
         # Tectonic
         self._updateTectonic()
 
-    	if MPIrank == 0 and self.verbose:
+        if MPIrank == 0 and self.verbose:
             print('Update External Forces (%0.02f seconds)'% (clock() - t0))
 
         return
@@ -760,7 +760,7 @@ class UnstMesh(object):
         self.sedLoadLocal.destroy()
         self.dm.destroy()
 
-    	if MPIrank == 0 and self.verbose:
+        if MPIrank == 0 and self.verbose:
             print('Cleaning Model Dataset (%0.02f seconds)'% (clock() - t0))
 
         return
