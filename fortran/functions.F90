@@ -14,7 +14,7 @@
 ! You should have received a copy of the GNU Lesser General Public License
 ! along with eSCAPE.  If not, see <http://www.gnu.org/licenses/>.
 
-! f2py --overwrite-signature -m _fortran -h functions.pyf functions.f90
+! f2py3 --overwrite-signature -m _fortran -h functions.pyf functions.f90
 
 #include "petsc/finclude/petsc.h"
 #include "petsc/finclude/petscmat.h"
