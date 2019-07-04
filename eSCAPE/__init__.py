@@ -74,7 +74,7 @@ from .tools import WriteMesh as _WriteMesh
 from petsc4py import PETSc as _PETSc
 from .flow import SPMesh as _SPMesh
 
-import tools
+from . import tools
 
 MPIrank = MPI.COMM_WORLD.Get_rank()
 

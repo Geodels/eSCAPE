@@ -228,7 +228,7 @@ class UnstMesh(object):
         """
 
         t0 = clock()
-        self.dm = PETSc.DMPlex().createFromCellList(dim, cells, coords, comm=MPIcomm)
+        self.dm = PETSc.DMPlex().createFromCellList(dim, cells, coords, comm=PETSc.COMM_WORLD)
         if MPIrank == 0 and self.verbose:
             print('Create DMPlex (%0.02f seconds)'% (clock() - t0))
 
@@ -244,6 +244,7 @@ class UnstMesh(object):
             self.dm.setLabelValue("coarse", pt, 1)
 
         # Define one DoF on the nodes
+        self.dm.setNumFields(1)
         origSect = self.dm.createSection(1, [1,0,0])
         origSect.setFieldName(0, "points")
         origSect.setUp()
@@ -270,7 +271,7 @@ class UnstMesh(object):
         l2g = self.lgmap_row.indices.copy()
         offproc = l2g < 0
         l2g[offproc] = -(l2g[offproc] + 1)
-        self.lgmap_col = PETSc.LGMap().create(l2g, comm=MPIcomm)
+        self.lgmap_col = PETSc.LGMap().create(l2g, comm=PETSc.COMM_WORLD)
         del l2g
 
         if MPIrank == 0 and self.verbose:
