@@ -1,7 +1,7 @@
-numpy
+mock
+ruamel.yaml
 Sphinx
 sphinx_rtd_theme
 sphinxcontrib-napoleon
 sphinxcontrib-inlinesyntaxhighlight
 sphinxemoji
-mock
