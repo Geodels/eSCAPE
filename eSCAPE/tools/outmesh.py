@@ -159,7 +159,6 @@ class WriteMesh(object):
         f.write('      <Time Type="Single" Value="%0.02f"/>\n'%self.saveTime)
 
         for p in range(MPIsize):
-            # tfile = self.topology
             pfile = 'h5/'+str(self.file)+'.'+str(self.step)+'.p'+str(p)+'.h5'
             tfile = 'h5/topology.'+str(self.topology)+'.p'+str(p)+'.h5'
             f.write('      <Grid Name="Block.%s">\n' %(str(p)))

@@ -46,11 +46,7 @@ class UnstPit(object):
 
         area = np.zeros(self.gpoints)
         area[self.natural2local] = self.FVmesh_area
-
-        if MPIrank == 0:
-            garea = np.zeros(self.gpoints)
-        else:
-            garea = None
+        garea = np.zeros(self.gpoints)
         MPI.COMM_WORLD.Reduce(area, garea, op=MPI.MAX, root=0)
         del area
 

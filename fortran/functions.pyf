@@ -1,192 +1,234 @@
-
 !    -*- f90 -*-
 ! Note: the context of this file is case sensitive.
 
 python module _fortran ! in
 
-  usercode '''
-  #include "fortran/functionsmodule.h"
-  '''
-  interface  ! in :_fortran
+    usercode '''
+    #include "fortran/functionsmodule.h"
+    '''
+    interface  ! in :_fortran
 
-      subroutine meanSlope(elev,bid,gbounds,bslp,nb,b)
+        module meshparams ! in :_fortran:functions.f90
+            integer, allocatable,dimension(:,:) :: qinid
+            integer, allocatable,dimension(:) :: fvnnb
+            real(kind=8), allocatable,dimension(:,:) :: fvelgt
+            integer :: nlocal
+            real(kind=8), allocatable,dimension(:,:) :: fvvdist
+            real(kind=8), allocatable,dimension(:) :: fvarea
+            integer, allocatable,dimension(:,:) :: fvnid
+        end module meshparams
 
-          real(kind=8) dimension(nb),intent(in) :: elev
-          integer dimension(b),intent(in) :: bid
-          integer dimension(nb),intent(in),depend(nb) :: gbounds
-          real(kind=8) dimension(nb,12),intent(in),depend(nb) :: elght
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: bslp
-          integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
-          integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
+        subroutine euclid(p1,p2,norm) ! in :_fortran:functions.f90
+            real(kind=8) dimension(3),intent(in) :: p1
+            real(kind=8) dimension(3),intent(in) :: p2
+            real(kind=8) intent(out) :: norm
+        end subroutine euclid
 
-      end subroutine meanSlope
+        subroutine quicksort(array,first,last,indices) ! in :_fortran:functions.f90
+            real(kind=8) dimension(:),intent(inout) :: array
+            integer intent(in) :: first
+            integer intent(in) :: last
+            integer dimension(:),intent(inout) :: indices
+        end subroutine quicksort
 
-      subroutine flatBounds(elev,erodep,bid,gbounds,be,bd,nb,b)
+        subroutine split(array,low,high,mid,indices) ! in :_fortran:functions.f90
+            real(kind=8) dimension(:),intent(inout) :: array
+            integer intent(in) :: low
+            integer intent(in) :: high
+            integer intent(out) :: mid
+            integer dimension(:),intent(inout) :: indices
+        end subroutine split
 
-          real(kind=8) dimension(nb),intent(in) :: elev
-          real(kind=8) dimension(nb),intent(in) :: erodep
-          integer dimension(b),intent(in) :: bid
-          integer dimension(nb),intent(in),depend(nb) :: gbounds
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: be
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: bd
-          integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
-          integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
+        subroutine meanSlope(elev,bid,gbounds,bslp,nb,b) ! in :_fortran:functions.f90
 
-      end subroutine flatBounds
+            use meshparams
+            real(kind=8) dimension(nb),intent(in) :: elev
+            integer dimension(b),intent(in) :: bid
+            integer dimension(nb),intent(in),depend(nb) :: gbounds
+            real(kind=8) dimension(nb),intent(out),depend(nb) :: bslp
+            integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
+            integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
 
-      subroutine slpBounds(elev,erodep,bid,gbounds,be,bd,nb,b)
+        end subroutine meanSlope
 
-          real(kind=8) dimension(nb),intent(in) :: elev
-          real(kind=8) dimension(nb),intent(in) :: erodep
-          integer dimension(b),intent(in) :: bid
-          integer dimension(nb),intent(in),depend(nb) :: gbounds
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: be
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: bd
-          integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
-          integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
+        subroutine flatBounds(elev,erodep,bid,gbounds,be,bd,nb,b) ! in :_fortran:functions.f90
 
-      end subroutine slpBounds
+            use meshparams
+            real(kind=8) dimension(nb),intent(in) :: elev
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: erodep
+            integer dimension(b),intent(in) :: bid
+            integer dimension(nb),intent(in),depend(nb) :: gbounds
+            real(kind=8) dimension(nb),intent(out),depend(nb) :: be
+            real(kind=8) dimension(nb),intent(out),depend(nb) :: bd
+            integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
+            integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
 
-      subroutine setHillslopeCoeff(nb,kd,dcoeff)
+        end subroutine flatBounds
 
-          integer intent(in) :: nb
-          real(kind=8) intent(in) :: kd
-          real(kind=8) dimension(nb,13),intent(out),depend(nb) :: dcoeff
+        subroutine slpBounds(elev,erodep,bid,gbounds,be,bd,nb,b) ! in :_fortran:functions.f90
 
-      end subroutine setHillslopeCoeff
+            use meshparams
+            real(kind=8) dimension(nb),intent(in) :: elev
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: erodep
+            integer dimension(b),intent(in) :: bid
+            integer dimension(nb),intent(in),depend(nb) :: gbounds
+            real(kind=8) dimension(nb),intent(out),depend(nb) :: be
+            real(kind=8) dimension(nb),intent(out),depend(nb) :: bd
+            integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
+            integer, optional,check(len(bid)>=b),depend(bid) :: b=len(bid)
 
-      subroutine setDiffusionCoeff(kd,limit,elev,elev0,dh,dcoeff,nb)
+        end subroutine slpBounds
 
-          real(kind=8) intent(in) :: kd
-          real(kind=8) intent(in) :: limit
-          real(kind=8) dimension(nb),intent(in) :: elev
-          real(kind=8) dimension(nb),intent(in) :: elev0
-          real(kind=8) dimension(nb),intent(in) :: dh
-          real(kind=8) dimension(nb,13),intent(out),depend(nb) :: dcoeff
-          integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
+        subroutine setHillslopeCoeff(nb,kd,dcoeff) ! in :_fortran:functions.f90
 
-      end subroutine setDiffusionCoeff
+            use meshparams
+            integer :: nb
+            real(kind=8) intent(in) :: kd
+            real(kind=8) dimension(nb,13),intent(out),depend(nb) :: dcoeff
 
-      subroutine explicitDiff(kd,limit,elev,elev0,dh,newz,nb)
+        end subroutine setHillslopeCoeff
 
-          real(kind=8) intent(in) :: kd
-          real(kind=8) intent(in) :: limit
-          real(kind=8) dimension(nb),intent(in) :: elev
-          real(kind=8) dimension(nb),intent(in) :: elev0
-          real(kind=8) dimension(nb),intent(in) :: dh
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: newz
-          integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
+        subroutine setDiffusionCoeff(kd,limit,elev,elev0,dh,dcoeff,nb) ! in :_fortran:functions.f90
 
-      end subroutine explicitDiff
+            use meshparams
+            real(kind=8) intent(in) :: kd
+            real(kind=8) intent(in) :: limit
+            real(kind=8) dimension(nb),intent(in) :: elev
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: dh
+            real(kind=8) dimension(nb,13),intent(out),depend(nb) :: dcoeff
+            integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
 
-      subroutine distributeHeight(inids,sl,elev,elev0,sed,nelev,nsed,nb)
+        end subroutine setDiffusionCoeff
 
-          integer dimension(nb),intent(in) :: inids
-          real(kind=8) intent(in) :: sl
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: sed
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: nelev
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: nsed
-          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+        subroutine explicitDiff(kd,limit,elev,elev0,dh,newz,nb) ! in :_fortran:functions.f90
 
-      end subroutine distributeHeight
+            use meshparams
+            real(kind=8) intent(in) :: kd
+            real(kind=8) intent(in) :: limit
+            real(kind=8) dimension(nb),intent(in) :: elev
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: dh
+            real(kind=8) dimension(nb),intent(out),depend(nb) :: newz
+            integer, optional,check(len(elev)>=nb),depend(elev) :: nb=len(elev)
 
-      subroutine distributeVolume(inids,sl,elev,elev0, sed,nsed,nb)
+        end subroutine explicitDiff
 
-          integer dimension(nb),intent(in) :: inids
-          real(kind=8) intent(in) :: sl
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: sed
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: nsed
-          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+        subroutine distributeHeight(inids,sl,elev,elev0,sed,nelev,nsed,nb) ! in :_fortran:functions.f90
 
-      end subroutine distributeVolume
+            use meshparams
+            integer dimension(nb),intent(in) :: inids
+            real(kind=8) intent(in) :: sl
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: sed
+            real(kind=8) dimension(nb),intent(out),depend(nb) :: nelev
+            real(kind=8) dimension(nb),intent(out),depend(nb) :: nsed
+            integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
 
-      subroutine diffusionDT(dm,hlocal,hl0,bounds,iters,itflx,inids,sflux,skd,okd,sl,ierr,nb)
+        end subroutine distributeHeight
 
-        integer(kind=HANDLE_KIND), intent(in)  :: dm
-        integer(kind=HANDLE_KIND), intent(in) :: hl0
-        integer(kind=HANDLE_KIND), intent(inout)  :: hlocal
-        integer dimension(nb),intent(in) :: inids
-        integer dimension(nb),intent(in),depend(nb) :: bounds
-        integer intent(in) :: iters
-        integer intent(in) :: itflx
-        real(kind=8) dimension(nb,12),intent(in),depend(nb) :: skd
-        real(kind=8) dimension(nb,12),intent(in),depend(nb) :: okd
-        real(kind=8) dimension(nb),intent(in),depend(nb) :: sflux
-        real(kind=8),intent(in) :: sl
-        integer, intent(out) ::   ierr
-        integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+        subroutine distributeVolume(inids,sl,elev,elev0,sed,nsed,nb) ! in :_fortran:functions.f90
 
-      end subroutine diffusionDT
+            use meshparams
+            integer dimension(nb),intent(in) :: inids
+            real(kind=8) intent(in) :: sl
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: elev0
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: sed
+            real(kind=8) dimension(nb),intent(out),depend(nb) :: nsed
+            integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
 
-      subroutine minHeight(inids,elev,hmin,nb)
+        end subroutine distributeVolume
 
-          integer dimension(nb),intent(in) :: inids
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          real(kind=8) dimension(nb),intent(out),depend(nb) :: hmin
-          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+        subroutine diffusionDT(dm,hlocal,hl0,bounds,iters,itflx,inids,sflux,skd,okd,sl,ierr,nb) ! in :_fortran:functions.f90
 
-      end subroutine minHeight
+            use petscmat
+            use meshparams
+            use petsc
+            integer dimension(nb),intent(in) :: bounds
+            integer intent(in) :: iters
+            integer intent(in) :: itflx
+            integer dimension(nb),intent(in),depend(nb) :: inids
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: sflux
+            real(kind=8) dimension(nb,12),intent(in),depend(nb) :: skd
+            real(kind=8) dimension(nb,12),intent(in),depend(nb) :: okd
+            real(kind=8) intent(in) :: sl
+            integer, optional,check(len(bounds)>=nb),depend(bounds) :: nb=len(bounds)
 
-      subroutine pitData(rank,pnode,inids,natural,tmp3,nb,nb1,nb2)
+        end subroutine diffusionDT
 
-          integer ,intent(in) :: rank
-          integer dimension(nb),intent(in) :: pnode
-          integer dimension(nb1),intent(in) :: inids
-          integer dimension(nb2),intent(in) :: natural
-          integer dimension(2*nb),intent(out),depend(nb) :: tmp3
-          integer, optional,check(len(pnode)>=nb),depend(pnode) :: nb=len(pnode)
-          integer, optional,check(len(inids)>=nb1),depend(inids) :: nb1=len(inids)
-          integer, optional,check(len(inids)>=nb2),depend(natural) :: nb2=len(natural)
+        subroutine MFDreceivers(nrcv,inids,elev,rcv,slope,dist,wgt,nb) ! in :_fortran:functions.f90
 
-      end subroutine pitData
+            use meshparams
+            integer intent(in) :: nrcv
+            integer dimension(nb),intent(in) :: inids
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+            integer dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: rcv
+            real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: slope
+            real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: dist
+            real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: wgt
+            integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
 
-      subroutine MFDreceivers(nrcv,inids,elev,rcv,slope,dist,wgt,nb)
+        end subroutine MFDreceivers
 
-          integer intent(in) :: nrcv
-          integer dimension(nb),intent(in) :: inids
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
-          integer dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: rcv
-          real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: slope
-          real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: dist
-          real(kind=8) dimension(nb,nrcv),intent(out),depend(nb,nrcv) :: wgt
-          integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
+        subroutine minHeight(inids,elev,hmin,nb) ! in :_fortran:functions.f90
 
-      end subroutine MFDreceivers
+            use meshparams
+            integer dimension(nb),intent(in) :: inids
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: elev
+            real(kind=8) dimension(nb),intent(out),depend(nb) :: hmin
+            integer, optional,check(len(inids)>=nb),depend(inids) :: nb=len(inids)
 
-      subroutine defineTIN(coords,cells_nodes,cells_edges,edges_nodes,area,circumcenter,ngbnb,ngbid,edgelgt,vorodist,n,nb,m)
+        end subroutine minHeight
 
-          real(kind=8) dimension(nb,3),intent(in) :: coords
-          integer dimension(n,3),intent(in) :: cells_nodes
-          integer dimension(n,3),intent(in),depend(n) :: cells_edges
-          integer dimension(m,2),intent(in) :: edges_nodes
-          real(kind=8) dimension(nb),intent(in),depend(nb) :: area
-          real(kind=8) dimension(3,n),intent(in),depend(n) :: circumcenter
-          integer dimension(nb),intent(out),depend(nb) :: ngbnb
-          integer dimension(nb,12),intent(out),depend(nb) :: ngbid
-          real(kind=8) dimension(nb,12),intent(out),depend(nb) :: edgelgt
-          real(kind=8) dimension(nb,12),intent(out),depend(nb) :: vorodist
-          integer, optional,check(shape(cells_nodes,0)==n),depend(cells_nodes) :: n=shape(cells_nodes,0)
-          integer, optional,check(shape(coords,0)==nb),depend(coords) :: nb=shape(coords,0)
-          integer, optional,check(shape(edges_nodes,0)==m),depend(edges_nodes) :: m=shape(edges_nodes,0)
+        subroutine pitData(rank_bn,pnode,inids,natural,tmp3,nb,nb1,nb2) ! in :_fortran:functions.f90
 
-      end subroutine defineTIN
+            integer intent(in) :: rank_bn
+            integer dimension(nb),intent(in) :: pnode
+            integer dimension(nb1),intent(in) :: inids
+            integer dimension(nb2),intent(in) :: natural
+            integer dimension(2 * nb),intent(out),depend(nb) :: tmp3
+            integer, optional,check(len(pnode)>=nb),depend(pnode) :: nb=len(pnode)
+            integer, optional,check(len(inids)>=nb1),depend(inids) :: nb1=len(inids)
+            integer, optional,check(len(natural)>=nb2),depend(natural) :: nb2=len(natural)
 
-      subroutine defineGTIN(nb,cells_nodes,edges_nodes,ngbnb,ngbid,n,m)
+        end subroutine pitData
 
-          integer ,intent(in) :: nb
-          integer dimension(n,3),intent(in) :: cells_nodes
-          integer dimension(m,2),intent(in) :: edges_nodes
-          integer dimension(nb),intent(out),depend(nb) :: ngbnb
-          integer dimension(nb,12),intent(out),depend(nb) :: ngbid
-          integer, optional,check(shape(cells_nodes,0)==n),depend(cells_nodes) :: n=shape(cells_nodes,0)
-          integer, optional,check(shape(edges_nodes,0)==m),depend(edges_nodes) :: m=shape(edges_nodes,0)
+        subroutine defineTIN(coords,cells_nodes,cells_edges,edges_nodes,area,circumcenter,ngbnb,ngbid,edgelgt,vorodist,n,nb,m) ! in :_fortran:functions.f90
 
-      end subroutine defineGTIN
+            use meshparams
+            real(kind=8) dimension(nb,3),intent(in) :: coords
+            integer dimension(n,3),intent(in) :: cells_nodes
+            integer dimension(n,3),intent(in),depend(n) :: cells_edges
+            integer dimension(m,2),intent(in) :: edges_nodes
+            real(kind=8) dimension(nb),intent(in),depend(nb) :: area
+            real(kind=8) dimension(3,n),intent(in),depend(n) :: circumcenter
+            integer dimension(nb),intent(out),depend(nb) :: ngbnb
+            integer dimension(nb,12),intent(out),depend(nb) :: ngbid
+            real(kind=8) dimension(nb,12),intent(out),depend(nb) :: edgelgt
+            real(kind=8) dimension(nb,12),intent(out),depend(nb) :: vorodist
+            integer, optional,check(shape(cells_nodes,0)==n),depend(cells_nodes) :: n=shape(cells_nodes,0)
+            integer, optional,check(shape(coords,0)==nb),depend(coords) :: nb=shape(coords,0)
+            integer, optional,check(shape(edges_nodes,0)==m),depend(edges_nodes) :: m=shape(edges_nodes,0)
 
-  end interface
+        end subroutine defineTIN
 
+        subroutine defineGTIN(nb,cells_nodes,edges_nodes,ngbnb,ngbid,n,m) ! in :_fortran:functions.f90
+
+            use meshparams
+            integer intent(in) :: nb
+            integer dimension(n,3),intent(in) :: cells_nodes
+            integer dimension(m,2),intent(in) :: edges_nodes
+            integer dimension(nb),intent(out),depend(nb) :: ngbnb
+            integer dimension(nb,12),intent(out),depend(nb) :: ngbid
+            integer, optional,check(shape(cells_nodes,0)==n),depend(cells_nodes) :: n=shape(cells_nodes,0)
+            integer, optional,check(shape(edges_nodes,0)==m),depend(edges_nodes) :: m=shape(edges_nodes,0)
+
+        end subroutine defineGTIN
+
+    end interface
 end python module _fortran
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/
