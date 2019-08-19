@@ -26,7 +26,7 @@ import sys
 import mock
 
 MOCK_MODULES = ['numpy', 'h5py', 'matplotlib', 'pandas', 'petsc4py', 'numpy.core', 'fillit',
-    'numpy.core.multiarray', 'numpy.core._multiarray_umath', 'mpi4py', 'scipy.interpolate',
+    'numpy.core.multiarray', 'numpy.core._multiarray_umath', 'mpi4py', 'scipy.interpolate', 'meshplex',
     'scipy', 'scipy.interpolate', 'scipy.ndimage', 'skimage', 'scipy.spatial', 'eSCAPE._fortran',
     'meshio', 'scipy.ndimage.filters', 'scipy.spatial', 'matplotlib.path']
 
