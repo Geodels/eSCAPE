@@ -1,3 +1,4 @@
+import numpy
 from numpy.distutils.core import setup, Extension
 try:
     from numpy.distutils.fcompiler import FCompiler
