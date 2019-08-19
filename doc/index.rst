@@ -1,8 +1,8 @@
 Getting started with eSCAPE
 ====================================
 
-.. image:: https://readthedocs.org/projects/badlands/badge/?version=latest
-  :target: https://badlands.readthedocs.io/en/latest/?badge=latest
+.. image:: https://readthedocs.org/projects/escape/badge/?version=latest
+  :target: https://escape.readthedocs.io/en/latest/?badge=latest
   :alt: Documentation Status
 
 .. image:: https://img.shields.io/docker/pulls/geodels/escape-docker
