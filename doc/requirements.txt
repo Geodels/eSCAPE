@@ -1,9 +1,7 @@
-Sphinx
 numpy
+Sphinx
 sphinx_rtd_theme
 sphinxcontrib-napoleon
 sphinxcontrib-inlinesyntaxhighlight
 sphinxemoji
 mock
-setuptools
--e ./
