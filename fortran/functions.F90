@@ -25,7 +25,7 @@
 #define CHKERRQ(n) if ((n) .ne. 0) return;
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!! INTERNAL FUNCTIONS !!
+!! INTERNAL FUNCTIONS                       !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 module meshparams
