@@ -22,7 +22,7 @@ time scales.
 ----------
 
 .. image:: images/FA.png
-   :scale: 60 %
+   :scale: 50 %
    :alt: eSCAPE model
    :align: center
 
@@ -53,6 +53,14 @@ eSCAPE is an open-source Python-based code and can be used to simulate:
 
 ----------
 
+.. toctree::
+   :maxdepth: 3
+   :name: Hand's on!
+   :caption: Hand's on!
+
+   install.rst
+   yml.rst
+   examples.rst
 
 .. toctree::
    :maxdepth: 3
@@ -67,7 +75,7 @@ eSCAPE is an open-source Python-based code and can be used to simulate:
    :caption: Help & Projects
 
    social.rst
-   
+
 .. toctree::
     :maxdepth: 3
     :name: Code Source
