@@ -1,43 +1,15 @@
 Installation
 ==============
 
-We provide several ways to use **eSCAPE** from:
+We provide two ways to use **eSCAPE** from:
 
-* live demo using binder_
-* to `docker image`_ or
-* local install via `setuptools`_.
+* the `docker image`_ or
+* from a local install via `setuptools`_.
 
-.. _binder: https://mybinder.readthedocs.io/en/latest/index.html
 .. _`docker image`: https://cloud.docker.com/u/geodels/repository/docker/geodels/escape-docker/general
 .. _`setuptools`: https://github.com/Geodels/eSCAPE/blob/master/setup.py
 
 ----------
-
-Binder
-------
-
-.. image:: https://mybinder.org/badge_logo.svg
-  :target: https://mybinder.org/v2/gh/badlands-model/badlands-docker/binder?filepath=StartHere.ipynb
-  :alt: Binder
-
-**eSCAPE binder** link above will launch a temporary Jupyter server just for you, running on mybinder.org and containing eSCAPE libraries and dependencies.
-
-.. warning::
-  *Binder is meant for interactive and ephemeral interactive coding, meaning that it is ideally suited for relatively short sessions. Binder will automatically shut down user sessions that have more than 10 minutes of inactivity*.
-
-Two examples are provided and should be all done in less than 10 minutes each.
-
-.. image:: img/binder3.gif
-   :scale: 60 %
-   :target: https://mybinder.org/v2/gh/badlands-model/badlands-docker/binder?filepath=StartHere.ipynb
-   :alt: capability
-   :align: center
-
-Click on the animated figure above to run the **live demo**  |:bomb:|
-
-.. important::
-  The binder is mostly used to present a short **live demo** of eSCAPE, it is limited in capacity and will not replace a full working environment. It gives you a flavour of it before starting the installation!
-
 
 Docker
 ------
@@ -87,78 +59,360 @@ For interactive processes (like a shell), we must use :code:`-i -t` together in 
 
 Finally, the :code:`-v` command or :code:`--volume=[host-src:]container-dest` attach a volume or folder from the local computer to the container shared folder (here :code:`/live/share`). The :code:`host-src` is an absolute path or a name value and in the command above correspond to the place where the command is run from.
 
+.. tip::
+  A step by step guide on how to use the eSCAPE docker image is provided `here`_.  |:bomb:|
 
-+---------------------------------+
-| Running Docker image            |
-+---------------------------------+
-
-.. image:: img/demo.gif
-   :scale: 60 %
-   :alt: demo
-   :align: center
+.. _`here`: https://github.com/Geodels/eSCAPE/wiki/Using-Docker
 
 
 Local installation
 -------------------
 
-.. image:: https://img.shields.io/pypi/v/badlands
-  :target: https://pypi.org/project/badlands
-  :alt: PyPI
+Below is a step by step guide to install **eSCAPE** on Linux system.
 
-
-+---------------------------------+
-| PyPI installation               |
-+---------------------------------+
-
-If you would like a native local build, you will need to download, install and compile the **badlands** code and relevant dependencies.
-
-We have created a **Python3 Package** that should handle all dependencies for you. And the recommended install is through the PyPI package:
-
-.. code:: bash
-
-   sudo pip3 install badlands
-   sudo pip3 install badlands-companion
-
-PyPI packages should install the following dependencies (`requirements.txt`_):
-
-+-----------------+----------------------+----------------------+
-| * tribad        | * numpy>=1.15.0      | * pandas>=0.24       |
-+-----------------+----------------------+----------------------+
-| * h5py>=2.8.0   | * setuptools>=38.4.0 | * scipy>=1.2         |
-+-----------------+----------------------+----------------------+
-| * six>=1.11.0   | * scikit-image>=0.15 | * gFlex>=1.1.0       |
-+-----------------+----------------------+----------------------+
-| * plotly==4.0.0 | * matplotlib>=3.0    | * scikit-fuzzy       |
-+-----------------+----------------------+----------------------+
-| * cmocean       | * pyevtk             | * netcdf4            |
-+-----------------+----------------------+----------------------+
-| * colorlover    |                      |                      |
-+-----------------+----------------------+----------------------+
-
-.. _`requirements.txt`: https://github.com/badlands-model/badlands-companion/blob/master/requirements.txt
-
-+---------------------------------+
-| Git installation                |
-+---------------------------------+
-
-Alternatively you can install **badlands** from the GitHub source:
-
-First, clone **badlands** & **badlands-companion** using git:
-
-.. code:: bash
-
-   git clone https://github.com/badlands-model/badlands.git
-   git clone https://github.com/badlands-model/badlands-companion.git
-
-Then, cd to the respective folder and run the install command:
-
-.. code:: bash
-
-  cd badlands/badlands
-  sudo python3 setup.py install
++-------------------------------------------------------+
+| Update your system and install default packages       |
++-------------------------------------------------------+
 
 
 .. code:: bash
 
-  cd ../../badlands-companion
-  sudo python3 setup.py install
+  apt-get update -qq
+  apt-get install -yq --no-install-recommends bash-completion build-essential
+  apt-get install -yq --no-install-recommends python3-minimal python3-dev python3-pip
+  apt-get install -yq --no-install-recommends python3-tk python3-dbg cmake
+  apt-get install -yq --no-install-recommends python3-setuptools wget gfortran
+
++-------------------------------------------------------+
+| MPI                                                   |
++-------------------------------------------------------+
+
+
+.. code:: bash
+
+  MPICH_VERSION="3.3"
+  MPICH_CONFIGURE_OPTIONS="--enable-fast=all,O3 --prefix=/opt/mpich"
+  MPICH_MAKE_OPTIONS="-j4"
+
+
+.. code:: bash
+
+  mkdir /tmp/mpich-build
+  wget http://www.mpich.org/static/downloads/${MPICH_VERSION}/mpich-${MPICH_VERSION}.tar.gz
+  tar xvzf mpich-${MPICH_VERSION}.tar.gz
+  cd mpich-${MPICH_VERSION}
+  ./configure ${MPICH_CONFIGURE_OPTIONS}
+  make ${MPICH_MAKE_OPTIONS}
+  make install
+  ldconfig
+  cd /tmp
+  rm -fr *
+
+  export MPI_DIR=/opt/mpich
+  export PATH=${MPI_DIR}/bin:$PATH
+
+
+
++-------------------------------------------------------+
+| PIP installation                                      |
++-------------------------------------------------------+
+
+
+.. code:: bash
+
+  pip3 install -U setuptools
+  pip3 install -U wheel
+  pip3 install --no-cache-dir numpy jupyter ipython plotly
+  pip3 install --no-cache-dir matplotlib ipython scipy
+  MPICC=${MPI_DIR}/mpicc MPICXX=${MPI_DIR}/mpicxx MPIFC=${MPI_DIR}/mpifort pip3 install --no-cache-dir mpi4py
+
+
++-------------------------------------------------------+
+| PETSC                                                 |
++-------------------------------------------------------+
+
+
+.. code:: bash
+
+  mkdir /tmp/petsc-build
+  export PETSC_VERSION="3.11.2"
+  wget http://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-lite-${PETSC_VERSION}.tar.gz
+  tar zxf petsc-lite-${PETSC_VERSION}.tar.gz && cd petsc-${PETSC_VERSION}
+
+
+Configure:
+
+.. code:: bash
+
+  ./configure --with-debugging=0 --prefix=/opt/petsc
+          --COPTFLAGS="-g -O3" --CXXOPTFLAGS="-g -O3" --FOPTFLAGS="-g -O3"
+          --with-zlib=1
+          --download-fblaslapack=1
+          --download-ctetgen=1
+          --download-triangle=1
+          --download-hdf5=1
+          --download-mumps=1
+          --download-parmetis=1
+          --download-metis=1
+          --download-hypre=1
+          --download-scalapack=1
+          --useThreads=1
+          --with-shared-libraries
+          --with-cxx-dialect=C++11
+
+Install:
+
+.. code:: bash
+
+  make PETSC_DIR=/tmp/petsc-build/petsc-${PETSC_VERSION} PETSC_ARCH=arch-linux-c-opt all
+  make PETSC_DIR=/tmp/petsc-build/petsc-${PETSC_VERSION} PETSC_ARCH=arch-linux-c-opt install
+  make PETSC_DIR=/opt/petsc PETSC_ARCH="" test
+
+
+
+Clean:
+
+.. code:: bash
+
+  cd /tmp
+  rm -fr *
+  export PETSC_DIR=/opt/petsc
+  export PATH=${PETSC_DIR}/bin:$PATH
+
+
+
+
++-------------------------------------------------------+
+| Additional dependencies for eSCAPE                    |
++-------------------------------------------------------+
+
+First HDF5 and PETSC4PY
+
+.. code:: bash
+
+  export PYTHONPATH=$PYTHONPATH:/usr/lib
+  CC=h5pcc HDF5_MPI="ON" HDF5_DIR=${PETSC_DIR} python3 -m pip install --no-cache-dir --no-binary=h5py h5py python3 -m pip install --no-cache-dir petsc4py
+
+Fillit
+
+.. code:: bash
+
+  mkdir /workspace/lib
+  export F90=gfortran
+  git clone -b python3 https://github.com/Geodels/fillit.git
+  cd fillit
+  python3 setup.py install
+
+and using pip:
+
+.. code:: bash
+
+  pip3 install pandas meshio rasterio meshplex ruamel.yaml
+
+
++-------------------------------------------------------+
+| Install eSCAPE                                        |
++-------------------------------------------------------+
+
+.. code:: bash
+
+  cd /workspace/lib
+  git clone -b petsc3.11.2 https://github.com/Geodels/eSCAPE.git
+  cd eSCAPE
+  export F90=gfortran
+  export PETSC_DIR=/opt/petsc
+  export PETSC_ARCH=arch-linux-c-opt
+  python setup.py install
+  cd ..
+
+
+Install eSCAPE-demo
+
+.. code:: bash
+
+  cd examples
+  git clone -b petsc3.11.2 https://github.com/Geodels/eSCAPE-demo.git
+
+
++-------------------------------------------------------+
+| Notebook packages                                     |
++-------------------------------------------------------+
+
+To run eSCAPE-demo and build the triangular meshes required by eSCAPE several packages are needed:
+
+.. code:: bash
+
+  apt-get update -qq
+  apt-get install -yq --no-install-recommends gmsh python3-gdal gdal-bin
+  apt-get install -yq --no-install-recommends libgeos++ libgeos-dev libgdal-dev libproj-dev
+
+
+and
+
+.. code:: bash
+
+  pip3 install setuptools wheel
+  pip3 install pathlib shapely descartes geopy pygeotools pygmsh stripy
+
+
+GMT color scale...
+
+
+.. code:: bash
+
+  git clone https://github.com/j08lue/pycpt.git
+  cd pycpt
+  git checkout b45f720d09da79bcd567c5cbba9a554b0a7cc1d9
+  python3 setup.py install
+  cd ..
+  rm -rf pycpt
+
+
+
+HPC installation
+-------------------
+
+List of required compilers
+
+The HPC installation has been tested with both *GNU fortran compiler* (5.4.0) and *Intel-mkl ifort* (18.0.1) compiler.
+
+.. important::
+
+  major.minor versions of Python - **eSCAPE** is compatible with Python version (2.7.x, 3.5.x and above). Python version 2.7.15 has been tested on HPC.
+
+
++-------------------------------------------------------+
+| Dependencies                                          |
++-------------------------------------------------------+
+
+Before you begin compiling **eSCAPE** and its dependencies, make sure you have set up your computer environment to include Python (2.7 and above), MPI implementation and a supported fortran compiler (*gfortran* and *ifort* have been tested).
+
+.. warning::
+
+  **eSCAPE** requires the **PETSc** library and **petsc4py** package. On HPC platforms, the PETSc library is often a default module. If this is not the case you can follow the guide provided in the local installation page.
+
+You will then need to have several other dependencies installed as **pip packages**. You can check which of them will need to be installed by opening a Python kernel and performing the following set of commands:
+
+
+.. code:: python
+
+  import numpy
+  import pandas
+  import scipy
+  from mpi4py import MPI
+  from petsc4py import PETSc
+  import ruamel.yaml as yaml
+  import meshio
+
+
+If some of these packages are not installed you can install them via pip:
+
+
+.. code:: bash
+
+  pip install XXX [--user]
+
+where XXX is the missing package.
+
+For **petsc4py** it is necessary to set the environment variables :code:`PETSC_DIR` and :code:`PETSC_ARCH` to their appropriate values (which will depend on your HPC installation):
+
+
+.. code:: bash
+
+  export PETSC_DIR=\path\to\petsc\location
+  export PETSC_ARCH=petsc-arch-values
+  pip install [--user] petsc4py
+
++-------------------------------------------------------+
+| Custom packages                                       |
++-------------------------------------------------------+
+
+Two additional packages are required prior to **eSCAPE** installation:
+
+* :code:`meshplex`
+* :code:`fillit`
+
+
+The :code:`meshplex` package could be installed with **pip**:
+
+.. code:: bash
+
+  pip install [--user] meshplex
+
+
+In case you encounter some difficulties during installation related to :code:`fastfunc` dependency, one can used the following forked version:
+
+.. code:: bash
+
+  git clone https://github.com/Geodels/meshplex.git
+  cd meshplex
+  python setup.py install [--user]
+  cd ..
+
+
+
+And :code:`fillit` is installed using the following set of commands:
+
+
+.. code:: bash
+
+  export F90=fortran-compiler
+  git clone https://github.com/Geodels/fillit.git
+  cd fillit
+  python setup.py install [--user]
+
+
+where :code:`fortran-compiler` needs to be replaced with the fortran compiler used to build **PETSC** (this will depend of the HPC installation but will likely be **gfortran** or **ifort**)
+
++-------------------------------------------------------+
+| eSCAPE                                                |
++-------------------------------------------------------+
+
+
+OK, now that all dependencies are installed we can finally proceed with eSCAPE:
+
+.. code:: bash
+
+  git clone https://github.com/Geodels/eSCAPE.git
+  cd eSCAPE
+  python setup.py install [--user]
+
+
+
++-------------------------------------------------------+
+| Testing installation                                  |
++-------------------------------------------------------+
+
+You can then do a simple test to check that all packages have been successfully installed by starting a python kernel and importing each module individually:
+
+.. code:: python
+
+  import numpy
+  import pandas
+  import scipy
+  from mpi4py import MPI
+  from petsc4py import PETSc
+  import ruamel.yaml as yaml
+  import meshio
+  import meshplex
+  import fillit
+  import eSCAPE
+
++-------------------------------------------------------+
+| Example of installation on HPC platform               |
++-------------------------------------------------------+
+
+**USyD Artemis HPC**
+
+.. code:: bash
+
+  module purge
+  module load python/2.7.15-intel petsc-intel-mpi hdf5
+  export F90=ifort
+  git clone https://github.com/Geodels/fillit.git
+  cd fillit
+  python setup.py install --user
+
+  git clone https://github.com/Geodels/eSCAPE.git
+  cd eSCAPE
+  python setup.py install --user

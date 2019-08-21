@@ -11,6 +11,7 @@ Input description
 
 .. important::
   In **eSCAPE**, a **YAML** input file (`syntax`_) is used to set the parameters and conditions that apply to a given simulation.
+  **YAML** structure is done through indentation (one or more spaces) and sequence items are denoted by a dash. When parsing the input file, the code is searching for some specific keywords defined below. Some parameters are optional and only need to be set when *specific forces* or *physical processes* are applied to a particular experiment.
 
 .. _`syntax`: https://circleci.com/blog/what-is-yaml-a-beginner-s-guide/
 
@@ -46,11 +47,11 @@ Here we present the complete list of parameters that can be used in the current 
 
     tectonic:
       - start: 0.
-        map: ['data/inputfileparameters.vtk','T1']
+        mapZ: ['data/inputfileparameters.vtk','T1']
       - start: 100000.
         uniform: 0.
       - start: 50000.
-        map: ['data/inputfileparameters.vtk','T2']
+        mapZ: ['data/inputfileparameters.vtk','T2']
 
     sp_br:
       Kbr: 1.e-5
@@ -67,12 +68,27 @@ Here we present the complete list of parameters that can be used in the current 
       makedir: False
 
 
-
 .. tip::
-  In that way, the user is only required to provide some simple regularly spaced dataset. A similar approach is used for any other maps (e.g. rain, tectonics...).
+  All the input parameters that are defined in external files like the initial surface, different precipitation or displacement maps are read from VTK files and defined on an irregular triangular grid (TIN).
 
+
+Examples on how to produce these files are provided in the `demo folder`_. The only exception is the sea-level file which is a two-columns CSV file containing on the first column the time in years and ordered in ascending order and on the second one the relative position of the sea-level in metres.
+
+.. _`demo folder`: https://github.com/Geodels/eSCAPE-demo
 
 The YAML structure is shown through indentation (one or more spaces) and sequence items are denoted by a dash. At the moment the following component are available:
+
+
++---------------------------------------------------------------------------+
+| Input parameters relative to initial surface, temporal extent and output. |
++---------------------------------------------------------------------------+
+
+.. image:: images/table1.png
+   :scale: 40 %
+   :alt: table1
+   :align: left
+
+The **domain** and **time** keywords are required for any simulation.
 
 
 Domain
@@ -91,6 +107,9 @@ Domain
 
 
 :code:`domain` : definition of the unstructured grid containing the **vtk** grid filename and the associated field (here called *Z*) as well as the flow direction method to be used **flowdir** that takes an integer value between 1 (for **SFD**) and 12 (for **Dinf**) and the boundary conditions (**bc**: ‘flat’, ‘fixed’ or ‘slope’)
+
+.. tip::
+  The *‘flat’* option assumes that all edges elevations are set to the elevations of their closest non-edge vertices, the *‘fixed’* option is used when edges elevations need to remain at their initial positions during the model run and the *‘slope’* option defines a slope based on the closest non-edge node average slope.
 
 
 .. figure:: images/flowalgo.jpg
@@ -123,6 +142,19 @@ The user also needs to define the time step **dt** used to compute the model pro
 
 Lastly, the user needs to define the output interval (**tout** - in years). Depending of the size of your model, decreasing the number of output by increasing **tout**  will make your simulation run quicker.
 
+
+
++---------------------------------------------------------------------------+
+| Input parameters relative to forcing conditions.                          |
++---------------------------------------------------------------------------+
+
+.. image:: images/table2.png
+  :scale: 40 %
+  :alt: table2
+  :align: left
+
+
+
 Sea
 ---------------------------------
 
@@ -142,8 +174,7 @@ Climate & tectonic
 ---------------------------------
 
 .. note::
-  As for the sea-level structure, climate & tectonic are both optional.
-
+  As for the sea-level structure, climate & tectonic are both optional. They may be defined as a sequence of multiple forcing conditions each requiring a starting time (**start** in years) and either a constant value applied to the entire grid (**uniform**) or spatially varying values specified in a file (**map**).
 
 :code:`climate` & :code:`tectonic` : have the same structure with a sequence of events defined by a starting time (:code:`start`) and either a constant value (:code:`uniform`) or a :code:`map`.
 
@@ -162,22 +193,27 @@ Climate & tectonic
 
     tectonic:
       - start: 0.
-        map: ['data/inputfileparameters.vtk','T1']
+        mapZ: ['data/inputfileparameters.vtk','T1']
       - start: 100000.
         uniform: 0.
       - start: 50000.
-        map: ['data/inputfileparameters.vtk','T2']
+        mapZ: ['data/inputfileparameters.vtk','T2']
+
 
 
 Surface processes
 ---------------------------
 
 
-.. image:: images/escape_mountain.gif
-   :scale: 80 %
-   :alt: demo
-   :align: center
 
++---------------------------------------------------------------------------+
+| Input parameters relative to physical processes.                          |
++---------------------------------------------------------------------------+
+
+.. image:: images/table3.png
+  :scale: 40 %
+  :alt: table3
+  :align: center
 
 
 The default law available in **eSCAPE** is based on the *detachment-limited equation* (:code:`sp_br`), where erosion rate :math:`\dot{\epsilon}` depends on drainage area :math:`A`, net precipitation :math:`P` and local slope :math:`S` and takes the form:
@@ -192,6 +228,11 @@ The default law available in **eSCAPE** is based on the *detachment-limited equa
     sp_br:
       Kbr: 1.e-5
 
+
+.. image:: images/escape_mountain.gif
+   :scale: 80 %
+   :alt: demo
+   :align: center
 
 .. important::
   It is worth noting that the coefficient :math:`m` and :math:`n` are fixed in this version and take the value *0.5* and *1* respectively.
