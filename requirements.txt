@@ -1,5 +1,5 @@
 numpy==1.15.1
-scipy==1.1.0
+scipy==1.10.0
 Cython==0.28.5
 mpi4py==3.0.0
 petsc4py==3.8.1
